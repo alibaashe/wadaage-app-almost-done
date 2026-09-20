@@ -940,8 +940,10 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Filter available candidates
     const eligible = availableDrivers.filter((drv) => {
-      // 1. Must be online and not occupied with another non-share trip
-      if (drv.status === 'busy' || drv.status === 'offline') return false;
+      // 1. Must be online, not occupied with another non-share trip, AND have prepaid wallet balance >= 0.10 USD (1,000 SLSH)
+      const minThresholdUsd = pricing?.driverMinWalletThresholdUsd || 0.10;
+      const drvBal = drv.walletBalanceUsd !== undefined ? Number(drv.walletBalanceUsd) : (getDriverWalletBalance ? getDriverWalletBalance(drv.id) : 0);
+      if (drv.status === 'busy' || drv.status === 'offline' || drvBal < minThresholdUsd) return false;
 
       // 2. Must not have declined this order
       if (declinedDriverIds.includes(drv.id) || (drv.phone && declinedDriverIds.includes(drv.phone))) {
@@ -2670,11 +2672,14 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       walletBalanceUsd: 0,
     };
 
+    let calculatedNewBalanceUsd = 0;
+
     // 1. Credit ONLY this specific driver in driverWallets map
     setDriverWallets((prev) => {
       const currentBal = prev[driverId] !== undefined ? prev[driverId] : (getDriverWalletBalance(driverId) || 0);
-      const newBal = Math.max(0, Math.round((currentBal + amountUsd) * 100) / 100);
-      const updated = { ...prev, [driverId]: newBal };
+      calculatedNewBalanceUsd = Math.max(0, Math.round((currentBal + amountUsd) * 100) / 100);
+      const updated = { ...prev, [driverId]: calculatedNewBalanceUsd };
+      if (targetDriver.phone) updated[targetDriver.phone] = calculatedNewBalanceUsd;
       try {
         localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(updated));
       } catch (e) {
@@ -2688,12 +2693,10 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDrivers((prev) =>
       prev.map((d) => {
         if (d.id === driverId || d.phone === driverId) {
-          const currentBal = d.walletBalanceUsd !== undefined ? d.walletBalanceUsd : 0;
-          const newBal = Math.max(0, Math.round((currentBal + amountUsd) * 100) / 100);
           return {
             ...d,
-            walletBalanceUsd: newBal,
-            status: newBal >= minThresholdUsd ? 'available' : d.status,
+            walletBalanceUsd: calculatedNewBalanceUsd,
+            status: calculatedNewBalanceUsd >= minThresholdUsd ? 'available' : d.status,
           };
         }
         return d;
@@ -2719,8 +2722,13 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       adminNote: note || `Directly credited ${amountSos.toLocaleString()} SOS ($${amountUsd.toFixed(2)}) by Dispatch Admin`,
     };
 
-    setDriverWalletTransactions((prev) => [newTx, ...prev]);
+    setDriverWalletTransactions((prev) => {
+      if (prev.some((t) => t.id === newTx.id)) return prev;
+      return [newTx, ...prev];
+    });
     saveTransactionToFirestore(newTx);
+
+    // Post to backend database endpoint with explicit newBalanceUsd to prevent +2x duplication
     fetch(getApiUrl('/api/db/wallet-transactions'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2735,11 +2743,14 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
         amountSos,
       }),
     }).catch(() => {});
+
+    // Broadcast update with absolute newBalanceUsd so remote listeners do not apply double addition
     broadcastRideEvent('DRIVER_WALLET_UPDATED', {
       driverId: targetDriver.id,
       driverPhone: targetDriver.phone,
       amountUsd,
       amountSos,
+      newBalanceUsd: calculatedNewBalanceUsd,
       tx: newTx,
     });
 
@@ -3948,52 +3959,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
 
-    // Check if ride service type is strictly 'Wadaage Share'
-    const isWadaageShareOrder =
-      completedRideObj.category === 'wadaage_share' ||
-      completedRideObj.service_type === 'Wadaage' ||
-      completedRideObj.categoryName === 'Wadaage Share' ||
-      completedRideObj.isShared === true;
-
-    // If order is 'Normal Taxi' (not Wadaage Share), bypass platform commission deduction
-    if (!isWadaageShareOrder) {
-      console.log(`[Commission Bypass] Ride ${completedRideObj.id} is Normal Taxi order. Skipping 1,000 SLSH commission deduction.`);
-
-      // Still add earnings to driver stats and trigger server finish without commission deduction
-      setDrivers((prev) =>
-        prev.map((d) => {
-          const isMatch =
-            d.id === targetDriverId ||
-            (targetDriverPhone && d.phone === targetDriverPhone) ||
-            (currentUser?.id && d.id === currentUser.id) ||
-            (currentUser?.phone && d.phone === currentUser.phone);
-
-          if (isMatch) {
-            return {
-              ...d,
-              todayEarnings: Math.round((d.todayEarnings + totalCollectedFare) * 100) / 100,
-              weeklyEarnings: Math.round((d.weeklyEarnings + totalCollectedFare) * 100) / 100,
-              totalTrips: d.totalTrips + 1,
-            };
-          }
-          return d;
-        })
-      );
-
-      fetch(getApiUrl(`/api/rides/${completedRideObj.id}/finish`), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          driverId: targetDriverId,
-          finalFare: totalCollectedFare,
-          isWadaageShare: false,
-        }),
-      }).catch(() => {});
-
-      return;
-    }
-
-    // Deduct 1,000 SLSH ($0.10 USD) platform commission fee ONLY upon Wadaage Share rider drop-off
+    // Deduct 1,000 SLSH ($0.10 USD) platform commission fee upon EVERY completed ride (Wadaage Share AND Normal Taxi)
     const commissionSos = 1000;
     const commissionUsd = 0.10;
 
@@ -4042,7 +4008,6 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       body: JSON.stringify({
         driverId: targetDriverId,
         finalFare: totalCollectedFare,
-        isWadaageShare: true,
       }),
     })
       .then((res) => res.ok ? res.json() : null)
