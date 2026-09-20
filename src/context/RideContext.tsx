@@ -4490,14 +4490,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...prev,
         ]);
       }
-      setCurrentRide({
-        ...currentRide,
-        driverRating: rating,
-        tipAmount: tip,
-      });
-      setTimeout(() => {
-        setCurrentRide(null);
-      }, 1500);
+      resetRideState();
     }
   };
 
