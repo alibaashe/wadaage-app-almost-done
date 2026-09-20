@@ -2261,6 +2261,8 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const updated = { ...prev };
             if (driverId) updated[driverId] = calculatedNewBal;
             if (driverPhone) updated[driverPhone] = calculatedNewBal;
+            if (currentUser?.id) updated[currentUser.id] = calculatedNewBal;
+            if (currentUser?.phone) updated[currentUser.phone] = calculatedNewBal;
             try { localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(updated)); } catch (_e) {}
             return updated;
           });
@@ -4435,7 +4437,8 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       cancelled: 'cancelled',
     };
 
-    const nextStatus = sequence[currentRide.status];
+    const normalizedStatus = (currentRide.status ? currentRide.status.toLowerCase() : 'accepted') as RideStatus;
+    const nextStatus = sequence[normalizedStatus] || sequence[currentRide.status] || 'completed';
 
     if (nextStatus === 'driver_arrived') {
       sounds.playIncomingPing();

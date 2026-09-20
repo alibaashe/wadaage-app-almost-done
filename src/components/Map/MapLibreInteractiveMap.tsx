@@ -302,6 +302,7 @@ export const MapLibreInteractiveMap: React.FC<MapLibreInteractiveMapProps> = ({
   // References for live markers & animation
   const driverMarkersRef = useRef<Record<string, Marker>>({});
   const driverPrevCoordsRef = useRef<Record<string, { lat: number; lng: number; heading: number }>>({});
+  const lastCameraCenterRef = useRef<{ lat: number; lng: number } | null>(null);
   const pickupMarkerRef = useRef<Marker | null>(null);
   const dropoffMarkerRef = useRef<Marker | null>(null);
   const coPickupMarkerRef = useRef<Marker | null>(null);
@@ -729,10 +730,18 @@ export const MapLibreInteractiveMap: React.FC<MapLibreInteractiveMapProps> = ({
     });
 
     drivers.forEach((driver) => {
-      const dLng = driver.currentLocation?.lng ?? (driver as any).lng ?? 44.065;
-      const dLat = driver.currentLocation?.lat ?? (driver as any).lat ?? 9.56;
       const isAssigned = currentRide?.assignedDriverId === driver.id;
       const isOnline = driver.status !== 'offline';
+
+      // EXPLICIT GUARD: If driver status is NOT active on a trip, coordinates stay strictly fixed to database location
+      let dLat = driver.currentLocation?.lat ?? (driver as any).lat ?? 9.56;
+      let dLng = driver.currentLocation?.lng ?? (driver as any).lng ?? 44.065;
+
+      const isTripActive = isAssigned && currentRide && ['accepted', 'driver_arrived', 'in_progress'].includes(currentRide.status);
+      if (!isTripActive && driver.status !== 'busy') {
+        dLat = Number(dLat.toFixed(6));
+        dLng = Number(dLng.toFixed(6));
+      }
 
       const prev = driverPrevCoordsRef.current[driver.id];
       let heading = (driver as any).heading || 0;
@@ -793,17 +802,24 @@ export const MapLibreInteractiveMap: React.FC<MapLibreInteractiveMapProps> = ({
       }
     });
 
-    // 3. Camera Smooth Following Mode
-    if (followDriver && activeDriver) {
+    // 3. Camera Smooth Following Mode with threshold check to prevent camera jump/jitter
+    if (followDriver && activeDriver && currentRide && ['accepted', 'driver_arrived', 'in_progress'].includes(currentRide.status)) {
       const aLng = activeDriver.currentLocation?.lng ?? (activeDriver as any).lng;
       const aLat = activeDriver.currentLocation?.lat ?? (activeDriver as any).lat;
 
-      if (aLng && aLat && currentRide && ['accepted', 'driver_arrived', 'in_progress'].includes(currentRide.status)) {
-        map.easeTo({
-          center: [aLng, aLat],
-          zoom: 15.2,
-          duration: 800,
-        });
+      if (aLng && aLat) {
+        const lastCenter = lastCameraCenterRef.current;
+        const distChange = lastCenter ? Math.hypot(aLat - lastCenter.lat, aLng - lastCenter.lng) : 999;
+
+        // Threshold check: Only ease camera if active car has moved significantly (> 0.0003 deg ~ 30 meters)
+        if (distChange > 0.0003) {
+          lastCameraCenterRef.current = { lat: aLat, lng: aLng };
+          map.easeTo({
+            center: [aLng, aLat],
+            zoom: 15.2,
+            duration: 900,
+          });
+        }
       }
     }
   }, [drivers, currentRide?.status, currentRide?.assignedDriverId, generateDriverGeoJson, followDriver, activeDriver]);
