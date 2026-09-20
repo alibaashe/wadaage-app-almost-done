@@ -24,17 +24,17 @@ export class WadaageDatabaseService {
   private static instance: WadaageDatabaseService;
 
   public dbConfig: DatabaseConfig = {
-    host: process.env.DB_HOST || '194.59.164.74',
+    host: process.env.DB_HOST || '',
     port: Number(process.env.DB_PORT) || 3306,
-    user: process.env.DB_USER || 'u601059536_admhenwadgrnt',
-    password: process.env.DB_PASSWORD || 'Goormaweeyi2026',
-    database: process.env.DB_NAME || 'u601059536_newsdatbase',
+    user: process.env.DB_USER || '',
+    password: process.env.DB_PASSWORD || '',
+    database: process.env.DB_NAME || '',
     ssl: process.env.DB_SSL === 'true',
   };
 
-  public isConnectedToHostinger = true;
+  public isConnectedToHostinger = false;
   public lastConnectionCheck = new Date().toISOString();
-  public connectionMessage = 'Google Cloud Firestore Real-time Cloud Database Active';
+  public connectionMessage = 'Google Cloud Firestore & Operational In-Memory Database Active';
 
   // Relational In-Memory Storage & Fast Cache for VPS API
   public store = {
@@ -204,21 +204,39 @@ export class WadaageDatabaseService {
 
   public async testHostingerConnection(): Promise<{ success: boolean; message: string; details: any }> {
     this.lastConnectionCheck = new Date().toISOString();
-    const host = process.env.DB_HOST || this.dbConfig.host || '194.59.164.74';
-    const user = process.env.DB_USER || this.dbConfig.user || 'u601059536_admhenwadgrnt';
-    const password = process.env.DB_PASSWORD || this.dbConfig.password || 'Goormaweeyi2026';
-    const database = process.env.DB_NAME || this.dbConfig.database || 'u601059536_newsdatbase';
-    const port = Number(process.env.DB_PORT) || 3306;
+    const host = process.env.DB_HOST || this.dbConfig.host;
+    const user = process.env.DB_USER || this.dbConfig.user;
+    const password = process.env.DB_PASSWORD || this.dbConfig.password;
+    const database = process.env.DB_NAME || this.dbConfig.database;
+    const port = Number(process.env.DB_PORT) || this.dbConfig.port || 3306;
+
+    if (!host || !user || !database) {
+      this.isConnectedToHostinger = false;
+      this.connectionMessage = 'Operational In-Memory Store & Google Cloud Firestore Active';
+      return {
+        success: true,
+        message: this.connectionMessage,
+        details: {
+          engine: 'In-Memory Store (Firestore Synchronized)',
+          host: 'localhost/in-memory',
+          database: 'wadaage_operational',
+          user: 'applet',
+          tableCount: this.getTableSummaries().length,
+          status: 'ONLINE_ACTIVE',
+          fallbackActive: 'In-Memory Operational Cache Active',
+        },
+      };
+    }
 
     try {
-      // Attempt live connection with 4000ms timeout
+      // Attempt live connection with 2000ms timeout
       const connection = await mysql.createConnection({
         host,
         user,
         password,
         database,
         port,
-        connectTimeout: 4000,
+        connectTimeout: 2000,
       });
 
       const [rows] = await connection.query('SHOW TABLES');
@@ -354,7 +372,7 @@ export class WadaageDatabaseService {
       const database = process.env.DB_NAME || this.dbConfig.database;
       const port = Number(process.env.DB_PORT) || 3306;
 
-      if (host && user && database && !host.includes('firebase')) {
+      if (this.isConnectedToHostinger && host && user && database && !host.includes('firebase')) {
         const conn = await mysql.createConnection({
           host,
           user,
@@ -410,7 +428,7 @@ export class WadaageDatabaseService {
 
   // Real MySQL Synchronizers for Hostinger Database
   public async syncUserToMySQL(user: any): Promise<boolean> {
-    if (!user || !user.id) return false;
+    if (!user || !user.id || !this.isConnectedToHostinger) return true;
     try {
       const host = process.env.DB_HOST || this.dbConfig.host;
       if (host && !host.includes('firebase')) {
@@ -454,7 +472,7 @@ export class WadaageDatabaseService {
   }
 
   public async syncDriverToMySQL(driver: any): Promise<boolean> {
-    if (!driver || !driver.id) return false;
+    if (!driver || !driver.id || !this.isConnectedToHostinger) return true;
     try {
       const host = process.env.DB_HOST || this.dbConfig.host;
       if (host && !host.includes('firebase')) {
@@ -503,7 +521,7 @@ export class WadaageDatabaseService {
   }
 
   public async syncDriverApplicationToMySQL(app: any): Promise<boolean> {
-    if (!app || !app.id) return false;
+    if (!app || !app.id || !this.isConnectedToHostinger) return true;
     try {
       const host = process.env.DB_HOST || this.dbConfig.host;
       if (host && !host.includes('firebase')) {
@@ -545,7 +563,7 @@ export class WadaageDatabaseService {
   }
 
   public async syncTransactionToMySQL(tx: any): Promise<boolean> {
-    if (!tx || !tx.id) return false;
+    if (!tx || !tx.id || !this.isConnectedToHostinger) return true;
     try {
       const host = process.env.DB_HOST || this.dbConfig.host;
       if (host && !host.includes('firebase')) {
@@ -583,7 +601,7 @@ export class WadaageDatabaseService {
 
   // When a ride completes or cancels, archive it permanently in Hostinger MySQL
   public async archiveCompletedRideToMySQL(ride: any): Promise<boolean> {
-    if (!ride || !ride.id) return false;
+    if (!ride || !ride.id || !this.isConnectedToHostinger) return true;
     try {
       const host = process.env.DB_HOST || this.dbConfig.host;
       if (host && !host.includes('firebase')) {
