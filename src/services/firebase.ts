@@ -528,7 +528,7 @@ export function subscribeToDrivers(onUpdate: (drivers: Driver[]) => void): () =>
     console.warn('Firestore drivers onSnapshot fallback:', err);
   }
 
-  // 2. Real-time SSE Driver Telematics stream
+  // 2. Real-time SSE Driver Telematics & Wallet stream
   try {
     if (typeof window !== 'undefined' && 'EventSource' in window) {
       sseSource = new EventSource(getApiUrl('/api/rides/stream'));
@@ -537,48 +537,63 @@ export function subscribeToDrivers(onUpdate: (drivers: Driver[]) => void): () =>
           const parsed = JSON.parse(event.data);
           if (parsed && parsed.type === 'DRIVER_LOCATION' && parsed.driver) {
             const d = parsed.driver;
+            // Only update location, heading, status without fabricating dummy wallet balances
             onUpdate([
               {
                 id: d.id,
                 name: d.name,
                 phone: d.phone,
-                avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-                documentsVerified: true,
-                currentLocation: { lat: d.lat, lng: d.lng },
-                status: d.status,
-                gender: 'male',
-                rating: 4.9,
-                totalTrips: 150,
-                isVerified: true,
-                kycStatus: 'approved',
-                vehicle: {
-                  make: 'Toyota',
-                  model: 'Corolla',
-                  year: '2020',
-                  licensePlate: 'SL-45892',
-                  category: d.category || 'wadaage_taxi',
-                  color: 'White',
-                  seats: 4,
-                },
-                todayEarnings: 45,
-                weeklyEarnings: 280,
-                hoursOnline: 6,
-                acceptanceRate: 98,
-                walletBalanceUsd: 25,
+                currentLocation: { lat: Number(d.lat), lng: Number(d.lng) },
+                status: d.status || 'available',
+                ...(d.heading !== undefined ? { heading: Number(d.heading) } : {}),
+                ...(d.wallet_balance_usd !== undefined || d.walletBalanceUsd !== undefined
+                  ? { walletBalanceUsd: Number(d.walletBalanceUsd ?? d.wallet_balance_usd) }
+                  : {}),
               } as unknown as Driver,
             ]);
+          } else if (parsed && parsed.type === 'DRIVER_WALLET_UPDATED') {
+            // Immediately relay real-time wallet update across tabs and storage
+            try {
+              if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+                const bc = new BroadcastChannel('wadaage_ride_realtime_events');
+                bc.postMessage(parsed);
+                bc.close();
+              }
+              localStorage.setItem('wadaage_last_broadcast_event', JSON.stringify(parsed));
+            } catch (_e) {}
           }
         } catch (_e) {}
       };
     }
   } catch (_e) {}
 
+  // Helper to map DB drivers to client Driver interface with normalized real walletBalanceUsd
+  const mapDbDrivers = (rawDrivers: any[]): Driver[] => {
+    return rawDrivers.map((drv) => {
+      const realBalUsd = Number(drv.walletBalanceUsd ?? drv.wallet_balance_usd ?? 0);
+      return {
+        ...drv,
+        walletBalanceUsd: realBalUsd,
+        wallet_balance_usd: realBalUsd,
+        todayEarnings: Number(drv.todayEarnings ?? drv.today_earnings_usd ?? drv.today_earnings ?? 0),
+        weeklyEarnings: Number(drv.weeklyEarnings ?? drv.weekly_earnings_usd ?? drv.weekly_earnings ?? 0),
+        totalTrips: Number(drv.totalTrips ?? drv.total_trips ?? 0),
+        rating: Number(drv.rating ?? 5.0),
+        status: drv.status || (drv.is_online ? 'available' : 'offline'),
+        currentLocation: drv.currentLocation || {
+          lat: Number(drv.current_lat || 9.5600),
+          lng: Number(drv.current_lng || 44.0650),
+        },
+      } as Driver;
+    });
+  };
+
   // 3. Fetch initial drivers from DB API
   fetch(getApiUrl('/api/db/drivers'))
     .then((res) => (res.ok ? res.json() : null))
     .then((data) => {
       if (data && Array.isArray(data.data) && data.data.length > 0) {
-        onUpdate(data.data as Driver[]);
+        onUpdate(mapDbDrivers(data.data));
       }
     })
     .catch(() => {});
@@ -588,11 +603,11 @@ export function subscribeToDrivers(onUpdate: (drivers: Driver[]) => void): () =>
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (data && Array.isArray(data.data) && data.data.length > 0) {
-          onUpdate(data.data as Driver[]);
+          onUpdate(mapDbDrivers(data.data));
         }
       })
       .catch(() => {});
-  }, 4000);
+  }, 5000);
 
   return () => {
     if (unsubscribeFirestore) unsubscribeFirestore();

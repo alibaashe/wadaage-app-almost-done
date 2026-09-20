@@ -9,8 +9,11 @@ import {
   Compass,
   Info,
   Layers,
+  Map,
   MapPin,
+  Maximize2,
   MessageSquare,
+  Minimize2,
   PhoneCall,
   Radar,
   Receipt,
@@ -44,6 +47,7 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({ onOpenSafetyModa
   const [showFareBreakdown, setShowFareBreakdown] = useState(false);
   const [showBeaconModal, setShowBeaconModal] = useState(false);
   const [cancelReason, setCancelReason] = useState('Driver taking too long');
+  const [isFullMapMode, setIsFullMapMode] = useState(false);
 
   // 3-Minute Pickup Countdown Timer State
   const [waitSeconds, setWaitSeconds] = useState(180); // 3 mins = 180s
@@ -104,55 +108,173 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({ onOpenSafetyModa
 
   return (
     <>
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xl space-y-4">
-        {/* Status Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center space-x-3">
-            {currentRide.status === 'searching' && (
-              <div className="relative flex items-center justify-center">
-                <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center animate-spin">
-                  <Radar className="w-5 h-5" />
-                </div>
+      {/* 1. MINIMIZED / FULL MAP COMPACT RIDER HUD */}
+      {isFullMapMode && currentRide.status !== 'searching' ? (
+        <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-3xl border border-slate-200/90 dark:border-slate-800 p-3.5 shadow-2xl space-y-2.5 animate-in fade-in slide-in-from-bottom-2">
+          {/* Top Row: Milestone Indicator & Expand Details Button */}
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center space-x-2 min-w-0">
+              <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+              <div className="min-w-0">
+                <span className="text-xs font-black text-slate-900 dark:text-white truncate block">
+                  {currentRide.status === 'accepted' && 'Darawalku wuu soo socdaa (~3 daqiiqo)'}
+                  {currentRide.status === 'driver_arrived' && 'Darawalku wuxuu joogaa goobta!'}
+                  {currentRide.status === 'in_progress' && `U socda: ${dropoffName}`}
+                </span>
+                <span className="text-[10px] text-slate-500 truncate block">
+                  {currentRide.categoryName || 'Wadaage'} • {currentRide.distanceKm} km • PIN: <b className="font-mono text-emerald-600 dark:text-emerald-400">{currentRide.otpCode || '4912'}</b>
+                </span>
               </div>
-            )}
-            {currentRide.status === 'accepted' && (
-              <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
-                <Car className="w-5 h-5" />
-              </div>
-            )}
-            {currentRide.status === 'driver_arrived' && (
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold">
-                <CheckCircle2 className="w-5 h-5 animate-bounce" />
-              </div>
-            )}
-            {currentRide.status === 'in_progress' && (
-              <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
-                <Car className="w-5 h-5" />
-              </div>
-            )}
-
-            <div>
-              <div className="font-extrabold text-slate-900 dark:text-white text-base">
-                {currentRide.status === 'searching' && 'Searching for Nearby Drivers...'}
-                {currentRide.status === 'accepted' && 'Driver Assigned & En Route'}
-                {currentRide.status === 'driver_arrived' && 'Driver Has Arrived at Pickup Point!'}
-                {currentRide.status === 'in_progress' && 'Ride in Progress'}
-              </div>
-              <p className="text-xs text-slate-500">
-                {currentRide.categoryName || 'Wadaage Ride'} • {pickupName} → {dropoffName}
-              </p>
             </div>
+
+            <button
+              type="button"
+              onClick={() => setIsFullMapMode(false)}
+              className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-xs font-black flex items-center space-x-1 shrink-0 active:scale-95 transition shadow-xs cursor-pointer"
+              title="Faahfaahin / Show Details"
+            >
+              <span>Faahfaahin</span>
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
           </div>
 
-          <div className="text-right">
-            <span className="font-black text-emerald-600 dark:text-emerald-400 text-base">
-              ${totalFare.toFixed(2)} USD
-            </span>
-            <div className="text-[10px] text-slate-400 uppercase font-semibold">
-              {currentRide.paymentMethod || 'cash'}
+          {/* Bottom Row: Driver, Vehicle, Fare & 1-Tap Quick Actions */}
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center space-x-2.5 min-w-0">
+              <img
+                src={assignedDriver.avatar}
+                alt={assignedDriver.name}
+                className="w-10 h-10 rounded-full object-cover border-2 border-emerald-500 shrink-0"
+              />
+              <div className="min-w-0">
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-xs font-black text-slate-900 dark:text-white truncate">
+                    {assignedDriver.name}
+                  </span>
+                  <span className="flex items-center text-[10px] font-bold text-amber-500">
+                    ★ {assignedDriver.rating}
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-500 font-medium truncate">
+                  {assignedDriver.vehicle.model} • <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{assignedDriver.vehicle.licensePlate}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Price & Action Buttons */}
+            <div className="flex items-center space-x-1.5 shrink-0">
+              <div className="text-right mr-1">
+                <div className="text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                  ${totalFare.toFixed(2)}
+                </div>
+                <div className="text-[9px] text-slate-400 font-medium">
+                  {totalSos.toLocaleString()} SLSH
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowChat(true)}
+                className="relative p-2.5 rounded-xl bg-emerald-500 text-slate-950 hover:bg-emerald-400 transition font-bold text-xs flex items-center justify-center active:scale-95 cursor-pointer shadow-sm"
+                title="Open Chat"
+              >
+                <MessageSquare className="w-4 h-4" />
+                {unreadChatCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] font-black flex items-center justify-center animate-pulse">
+                    {unreadChatCount}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => initiateVoiceCall()}
+                className="p-2.5 rounded-xl bg-slate-800 text-emerald-400 hover:bg-slate-700 transition text-xs font-bold flex items-center justify-center active:scale-95 cursor-pointer shadow-sm"
+                title="Call Driver"
+              >
+                <PhoneCall className="w-4 h-4" />
+              </button>
+
+              {currentRide.beaconColor && (
+                <button
+                  type="button"
+                  onClick={() => setShowBeaconModal(true)}
+                  className="p-2.5 rounded-xl text-slate-950 font-black text-xs shadow hover:brightness-110 active:scale-95 transition cursor-pointer"
+                  style={{ backgroundColor: currentRide.beaconColor?.hex || '#06B6D4' }}
+                  title="Open Beacon"
+                >
+                  <Zap className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         </div>
+      ) : (
+        /* 2. EXPANDED ACTIVE RIDE DETAILS SHEET */
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 p-5 shadow-2xl space-y-4 max-h-[80vh] overflow-y-auto">
+          {/* Status Header with Dedicated Full Map Toggle Button */}
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex items-center space-x-3">
+              {currentRide.status === 'searching' && (
+                <div className="relative flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 text-amber-500 flex items-center justify-center animate-spin">
+                    <Radar className="w-5 h-5" />
+                  </div>
+                </div>
+              )}
+              {currentRide.status === 'accepted' && (
+                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center font-bold">
+                  <Car className="w-5 h-5" />
+                </div>
+              )}
+              {currentRide.status === 'driver_arrived' && (
+                <div className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-500 flex items-center justify-center font-bold">
+                  <CheckCircle2 className="w-5 h-5 animate-bounce" />
+                </div>
+              )}
+              {currentRide.status === 'in_progress' && (
+                <div className="w-10 h-10 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-bold">
+                  <Car className="w-5 h-5" />
+                </div>
+              )}
+
+              <div>
+                <div className="font-extrabold text-slate-900 dark:text-white text-base">
+                  {currentRide.status === 'searching' && 'Searching for Nearby Drivers...'}
+                  {currentRide.status === 'accepted' && 'Driver Assigned & En Route'}
+                  {currentRide.status === 'driver_arrived' && 'Driver Has Arrived at Pickup Point!'}
+                  {currentRide.status === 'in_progress' && 'Ride in Progress'}
+                </div>
+                <p className="text-xs text-slate-500">
+                  {currentRide.categoryName || 'Wadaage Ride'} • {pickupName} → {dropoffName}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              {currentRide.status !== 'searching' && (
+                <button
+                  type="button"
+                  onClick={() => setIsFullMapMode(true)}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold flex items-center space-x-1.5 transition active:scale-95 shadow-xs cursor-pointer"
+                  title="Minimize to Full Map View / Arag Khariidada Buuxda"
+                >
+                  <Map className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span className="hidden sm:inline">Khariidad Buuxda</span>
+                  <span className="sm:hidden">Map</span>
+                </button>
+              )}
+
+              <div className="text-right">
+                <span className="font-black text-emerald-600 dark:text-emerald-400 text-base">
+                  ${totalFare.toFixed(2)} USD
+                </span>
+                <div className="text-[10px] text-slate-400 uppercase font-semibold">
+                  {currentRide.paymentMethod || 'cash'}
+                </div>
+              </div>
+            </div>
+          </div>
 
         {/* Prominent Price & Fare Breakdown Card for Rider */}
         <div className="bg-gradient-to-br from-slate-50 to-emerald-50/40 dark:from-slate-800/80 dark:to-emerald-950/20 border border-emerald-500/20 rounded-2xl p-3.5 space-y-2">
@@ -565,6 +687,7 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({ onOpenSafetyModa
           </div>
         )}
       </div>
+      )}
 
       {/* Cancel Confirmation Modal */}
       {showCancelModal && (

@@ -581,6 +581,8 @@ Return ONLY valid JSON matching this schema:
       today_earnings_usd: Number(req.body.todayEarnings || existingDriver?.today_earnings_usd || 0),
       weekly_earnings_usd: Number(req.body.weeklyEarnings || existingDriver?.weekly_earnings_usd || 0),
       working_capital_usd: 15.0,
+      wallet_balance_usd: Number(req.body.walletBalanceUsd ?? req.body.wallet_balance_usd ?? existingDriver?.wallet_balance_usd ?? existingDriver?.walletBalanceUsd ?? 0),
+      walletBalanceUsd: Number(req.body.walletBalanceUsd ?? req.body.wallet_balance_usd ?? existingDriver?.wallet_balance_usd ?? existingDriver?.walletBalanceUsd ?? 0),
       status: req.body.status || existingDriver?.status || 'available',
       is_online: req.body.status === 'available' ? 1 : 0,
       is_verified: req.body.isVerified !== undefined ? (req.body.isVerified ? 1 : 0) : (existingDriver?.is_verified ?? 0),
@@ -806,30 +808,62 @@ Return ONLY valid JSON matching this schema:
     // Direct Asynchronous Sync to Live Hostinger MySQL database
     dbService.syncTransactionToMySQL(tx).catch(() => {});
 
-    // Sync updated driver wallet balance in memory store
+    // Sync updated driver wallet balance in memory store & MySQL
+    let updatedDriver: any = null;
     if (tx.driverId || tx.driverPhone) {
+      const cleanPhone = String(tx.driverPhone || '').replace(/\D/g, '');
       const driver = dbService.store.drivers.find(
-        (d: any) => d.id === tx.driverId || (tx.driverPhone && d.phone === tx.driverPhone)
+        (d: any) =>
+          d.id === tx.driverId ||
+          (tx.driverPhone && d.phone === tx.driverPhone) ||
+          (cleanPhone && d.phone && String(d.phone).replace(/\D/g, '') === cleanPhone)
       );
-      if (driver && tx.status === 'completed' && tx.type === 'topup') {
-        const curBal = Number(driver.wallet_balance_usd || driver.walletBalanceUsd || 0);
-        const newBal = Math.round((curBal + Number(tx.amountUsd || 0)) * 100) / 100;
+      if (driver && tx.status === 'completed') {
+        const curBal = Number(driver.wallet_balance_usd ?? driver.walletBalanceUsd ?? 0);
+        const delta = Number(tx.amountUsd ?? tx.amount_usd ?? 0);
+        const newBal = Math.max(0, Math.round((curBal + delta) * 100) / 100);
         driver.wallet_balance_usd = newBal;
         driver.walletBalanceUsd = newBal;
         if (newBal >= 0.10) {
           driver.status = 'available';
-          driver.is_online = true;
+          driver.is_online = 1;
+        } else {
+          driver.status = 'offline';
+          driver.is_online = 0;
         }
+        updatedDriver = driver;
+        dbService.syncDriverToMySQL(driver).catch(() => {});
+      }
+    }
+
+    // Also sync passenger wallet if transaction belongs to a user/passenger
+    if (tx.user_id || tx.userId) {
+      const uId = tx.user_id || tx.userId;
+      const cleanUPhone = String(uId).replace(/\D/g, '');
+      const user = dbService.store.users.find(
+        (u: any) =>
+          u.id === uId ||
+          u.phone === uId ||
+          (cleanUPhone && u.phone && String(u.phone).replace(/\D/g, '') === cleanUPhone)
+      );
+      if (user && tx.status === 'completed') {
+        const curBal = Number(user.wallet_balance_usd || 0);
+        const delta = Number(tx.amountUsd ?? tx.amount_usd ?? tx.amount ?? 0);
+        const newBal = Math.max(0, Math.round((curBal + delta) * 100) / 100);
+        user.wallet_balance_usd = newBal;
+        user.wallet_balance_sos = Math.round(newBal * 10000);
+        dbService.syncUserToMySQL(user).catch(() => {});
       }
     }
 
     // Real-Time SSE Broadcast to all connected Admin and Driver clients
     const ssePayload = `data: ${JSON.stringify({
       type: 'DRIVER_WALLET_UPDATED',
-      driverId: tx.driverId,
-      driverPhone: tx.driverPhone,
-      amountUsd: tx.amountUsd,
-      amountSos: tx.amountSos,
+      driverId: tx.driverId || updatedDriver?.id,
+      driverPhone: tx.driverPhone || updatedDriver?.phone,
+      amountUsd: Number(tx.amountUsd ?? tx.amount_usd ?? 0),
+      amountSos: Number(tx.amountSos ?? (Number(tx.amountUsd ?? tx.amount_usd ?? 0) * 10000)),
+      newBalanceUsd: updatedDriver ? updatedDriver.wallet_balance_usd : undefined,
       tx,
       timestamp: Date.now(),
     })}\n\n`;
@@ -1558,14 +1592,23 @@ Return ONLY valid JSON matching this schema:
     dbService.store.wallet_transactions.unshift(commTx);
     dbService.syncTransactionToMySQL(commTx).catch(() => {});
 
+    const cleanTargetPhone = String(targetDriverId).replace(/\D/g, '');
     const driverInDb = dbService.store.drivers.find(
-      (d: any) => d.id === targetDriverId || d.user_id === targetDriverId || (d.phone && d.phone === targetDriverId)
+      (d: any) =>
+        d.id === targetDriverId ||
+        d.user_id === targetDriverId ||
+        (d.phone && d.phone === targetDriverId) ||
+        (cleanTargetPhone && d.phone && String(d.phone).replace(/\D/g, '') === cleanTargetPhone)
     );
     if (driverInDb) {
       const curBal = Number(driverInDb.wallet_balance_usd || driverInDb.walletBalanceUsd || 0);
-      const newBal = Math.round((curBal - commissionUsd) * 100) / 100;
+      const newBal = Math.max(0, Math.round((curBal - commissionUsd) * 100) / 100);
       driverInDb.wallet_balance_usd = newBal;
       driverInDb.walletBalanceUsd = newBal;
+      if (newBal < 0.10) {
+        driverInDb.status = 'offline';
+        driverInDb.is_online = 0;
+      }
       dbService.syncDriverToMySQL(driverInDb).catch(() => {});
     }
 
@@ -1580,11 +1623,15 @@ Return ONLY valid JSON matching this schema:
     // Broadcast update to all connected clients
     broadcastRidesToClients('RIDE_STATUS_UPDATED');
 
-    const ssePayload = `event: DRIVER_WALLET_UPDATED\ndata: ${JSON.stringify({
+    const ssePayload = `data: ${JSON.stringify({
+      type: 'DRIVER_WALLET_UPDATED',
       driverId: targetDriverId,
+      driverPhone: driverInDb?.phone,
       amountUsd: -commissionUsd,
       amountSos: -commissionSos,
+      newBalanceUsd: driverInDb ? driverInDb.wallet_balance_usd : undefined,
       tx: commTx,
+      timestamp: Date.now(),
     })}\n\n`;
 
     for (const client of sseClients) {

@@ -486,8 +486,8 @@ export class WadaageDatabaseService {
         });
 
         const sql = `
-          INSERT INTO drivers (id, name, phone, status, vehicle_category, license_plate, rating, total_trips, is_verified, kyc_status, updated_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+          INSERT INTO drivers (id, name, phone, status, vehicle_category, license_plate, rating, total_trips, is_verified, kyc_status, wallet_balance_usd, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
           ON DUPLICATE KEY UPDATE
             name = VALUES(name),
             phone = VALUES(phone),
@@ -498,6 +498,7 @@ export class WadaageDatabaseService {
             total_trips = VALUES(total_trips),
             is_verified = VALUES(is_verified),
             kyc_status = VALUES(kyc_status),
+            wallet_balance_usd = VALUES(wallet_balance_usd),
             updated_at = NOW();
         `;
         await conn.execute(sql, [
@@ -511,6 +512,7 @@ export class WadaageDatabaseService {
           driver.total_trips || driver.totalTrips || 0,
           driver.is_verified ?? driver.isVerified ? 1 : 0,
           driver.kyc_status || driver.kycStatus || 'approved',
+          Number(driver.wallet_balance_usd ?? driver.walletBalanceUsd ?? 0),
         ]);
         await conn.end();
       }
@@ -585,9 +587,9 @@ export class WadaageDatabaseService {
         `;
         await conn.execute(sql, [
           tx.id,
-          tx.user_id || tx.userId || 'usr_unknown',
+          tx.user_id || tx.userId || tx.driverId || 'usr_unknown',
           tx.transaction_type || tx.type || 'topup',
-          tx.amount_usd || tx.amount || 0,
+          Number(tx.amount_usd ?? tx.amountUsd ?? tx.amount ?? 0),
           tx.payment_provider || tx.provider || 'zaad',
           tx.status || 'completed',
         ]);

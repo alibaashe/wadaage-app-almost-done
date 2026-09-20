@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   Car,
+  ChevronDown,
   ChevronRight,
+  ChevronUp,
   Flame,
   Globe,
   LogOut,
@@ -112,6 +114,9 @@ export const MobileDriverApp: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'home' | 'my_rides' | 'fuel' | 'earnings' | 'profile' | 'active_ride' | 'settings'>('home');
   const [viewMapOverlay, setViewMapOverlay] = useState(false);
   const [cleanMapNavMode, setCleanMapNavMode] = useState(false);
+  const [isFullMapMode, setIsFullMapMode] = useState(true);
+  const [showDetailsDrawer, setShowDetailsDrawer] = useState(false);
+  const [activeCarpoolRider, setActiveCarpoolRider] = useState<'A' | 'B'>('A');
   const [isVoiceMuted, setIsVoiceMuted] = useState(voiceNavigationService.isVoiceMuted());
   const [mapZoom, setMapZoom] = useState(14);
   const [dismissKycBanner, setDismissKycBanner] = useState(false);
@@ -356,6 +361,26 @@ export const MobileDriverApp: React.FC = () => {
 
           {/* MAP FLOATING CONTROLS ON RIGHT */}
           <div className="absolute right-3 top-36 z-20 flex flex-col space-y-2 pointer-events-auto">
+            {/* Dedicated Interactive Full Map / Khariidad Buuxda Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsFullMapMode((prev) => !prev);
+                setShowDetailsDrawer(false);
+              }}
+              className={`w-10 h-10 rounded-2xl backdrop-blur-md shadow-md border flex flex-col items-center justify-center active:scale-95 transition cursor-pointer ${
+                isFullMapMode
+                  ? 'bg-emerald-600 text-white border-emerald-500 shadow-emerald-500/30'
+                  : 'bg-white/95 text-slate-700 border-slate-200/80 hover:bg-white'
+              }`}
+              title={isFullMapMode ? 'Khariidad Buuxda (Full Map Active) - Taabo si aad u aragto faahfaahin' : 'Daar Khariidad Buuxda (Full Map View)'}
+            >
+              <Map className="w-4 h-4" />
+              <span className="text-[7px] font-black uppercase tracking-tighter mt-0.5">
+                {isFullMapMode ? 'Full' : 'Map'}
+              </span>
+            </button>
+
             {/* Clean Map / Live Waze Navigation Toggle */}
             <button
               type="button"
@@ -799,83 +824,36 @@ export const MobileDriverApp: React.FC = () => {
                         />
                       </div>
 
-                      {/* Secondary Actions: DIID (Reject) & WAREEJI (Transfer) Matching eccet.png */}
+                      {/* Secondary Actions: DIID (Reject) & WAREEJI (Transfer) */}
                       <div className={`grid ${(!currentRide || currentRide.status === 'searching' || currentRide.status === 'idle') ? 'grid-cols-2' : 'grid-cols-1'} gap-3 pt-1`}>
                         <button
                           type="button"
                           onClick={() => declineRideByDriver()}
-                          className="py-3.5 px-4 rounded-2xl bg-[#3b1d28] hover:bg-[#4d1f2e] text-rose-400 border border-rose-500/30 font-black text-sm uppercase tracking-wider transition active:scale-95 flex flex-col items-center justify-center space-y-1 shadow-md"
+                          className="py-3 px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/60 dark:hover:bg-rose-900/80 text-rose-700 dark:text-rose-300 border-2 border-rose-300 dark:border-rose-700 font-black text-xs uppercase tracking-wider transition active:scale-95 flex items-center justify-center space-x-2 shadow-sm cursor-pointer"
                         >
-                          <X className="w-5 h-5 text-rose-400 stroke-[2.5]" />
-                          <span className="text-base tracking-widest text-rose-400">DIID</span>
-                          <span className="text-[10px] text-rose-300/70 font-normal lowercase">Reject</span>
+                          <X className="w-5 h-5 text-rose-600 stroke-[2.5]" />
+                          <div className="flex flex-col text-left">
+                            <span className="text-sm font-black tracking-wide">DIID</span>
+                            <span className="text-[9px] text-rose-500 font-normal">Reject Request</span>
+                          </div>
                         </button>
 
                         {(!currentRide || currentRide.status === 'searching' || currentRide.status === 'idle') && (
                           <button
                             type="button"
                             onClick={() => setShowTransferModal(true)}
-                            className="py-3.5 px-4 rounded-2xl bg-[#3a301f] hover:bg-[#4d3d24] text-amber-400 border border-amber-500/30 font-black text-sm uppercase tracking-wider transition active:scale-95 flex flex-col items-center justify-center space-y-1 shadow-md"
+                            className="py-3 px-4 rounded-2xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/80 text-amber-800 dark:text-amber-300 border-2 border-amber-300 dark:border-amber-700 font-black text-xs uppercase tracking-wider transition active:scale-95 flex items-center justify-center space-x-2 shadow-sm cursor-pointer"
                           >
-                            <RotateCw className="w-5 h-5 text-amber-400 stroke-[2.5]" />
-                            <span className="text-base tracking-widest text-amber-400">WAREEJI</span>
-                            <span className="text-[10px] text-amber-300/70 font-normal lowercase">Transfer</span>
+                            <RotateCw className="w-5 h-5 text-amber-600 stroke-[2.5]" />
+                            <div className="flex flex-col text-left">
+                              <span className="text-sm font-black tracking-wide">WAREEJI</span>
+                              <span className="text-[9px] text-amber-600 font-normal">Transfer to Driver</span>
+                            </div>
                           </button>
                         )}
                       </div>
                     </div>
                   </BottomSheet>
-
-                  {/* Inline Dashboard Fallback Card */}
-                  <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border-2 border-emerald-500 relative overflow-hidden space-y-3.5 ring-2 ring-[#008751]/20">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-emerald-600 to-teal-500 text-white font-bold flex items-center justify-center text-base shadow-sm">
-                          {req.passengerName?.charAt(0) || 'P'}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-1.5">
-                            <h4 className="font-extrabold text-sm text-slate-900">
-                              {req.passengerName || 'Rakaab Wadaage'}
-                            </h4>
-                            <span className="bg-amber-100 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full border border-amber-300">
-                              {requestTimer}s LEFT
-                            </span>
-                          </div>
-                          <div className="flex items-center space-x-1.5 mt-0.5">
-                            <span className="bg-slate-100 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-md">
-                              {isShareOrder ? 'Shared Wadaage' : 'Standard Taxi (Private)'}
-                            </span>
-                            <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md border border-blue-200">
-                              📍 {radiusCheck.distanceKm} km away
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="text-right">
-                        <div className="text-xl font-black text-[#008751] font-mono">
-                          {formatCurrency(req.totalFare || 2.50)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <button
-                        type="button"
-                        onClick={() => acceptRideByDriver()}
-                        className="w-full py-3.5 px-4 rounded-2xl bg-[#008751] hover:bg-[#007445] text-white font-black text-sm uppercase tracking-wider shadow-lg shadow-[#008751]/30 transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <Check className="w-5 h-5 stroke-[3]" />
-                        <span>AQBAL DALABKA • ACCEPT ({requestTimer}s)</span>
-                      </button>
-                      <SlideToAccept
-                        onAccept={() => acceptRideByDriver()}
-                        label="Ama u siq si aad u aqbasho"
-                        completedLabel="Waa la aqbalay!"
-                      />
-                    </div>
-                  </div>
                 </>
               );
             })()
@@ -938,10 +916,248 @@ export const MobileDriverApp: React.FC = () => {
               </button>
             </div>
           ) : currentRide && currentRide.status !== 'searching' && currentRide.status !== 'idle' ? (
-            /* ACTIVE RIDE: EITHER 2-RIDER DUAL CONTROL PANEL OR SINGLE RIDER PANEL */
-            currentRide.coPassenger ? (
-              /* DUAL CONTROL PANEL FOR STACKED / CARPOOL RIDES */
-              <div className="space-y-3.5">
+            isFullMapMode && !showDetailsDrawer ? (
+              /* STREAMLINED LOW-PROFILE COMPACT ACTIVE TRIP HUD (Unobstructed Full-Bleed Map) */
+              <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-3xl border border-slate-200/90 dark:border-slate-800 p-3.5 shadow-2xl space-y-2.5 animate-in fade-in slide-in-from-bottom-2">
+                {/* Milestone row & Expand Faahfaahin drawer toggle */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center space-x-2 min-w-0">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+                    <div className="min-w-0">
+                      <span className="text-xs font-black text-slate-900 dark:text-white truncate block">
+                        {currentRide.status === 'accepted' && `📍 Kaqabasho: ${currentRide.pickup?.name || 'Pickup Point'}`}
+                        {currentRide.status === 'driver_arrived' && '🏁 Goobta Gaadhay • Sugaya Rakaabka'}
+                        {currentRide.status === 'in_progress' && `🚗 Kadhigid: ${currentRide.dropoff?.name || 'Destination'}`}
+                      </span>
+                      <span className="text-[10px] text-slate-500 truncate block">
+                        {currentRide.coPassenger ? '⚡ 2-Rider Wadaage Carpool' : (currentRide.categoryName || 'Wadaage')} • PIN: <b className="font-mono text-emerald-600 dark:text-emerald-400">{currentRide.otpCode || '4912'}</b>
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Expandable Faahfaahin (Details) button */}
+                  <button
+                    type="button"
+                    onClick={() => setShowDetailsDrawer(true)}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/80 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 text-xs font-black flex items-center space-x-1 shrink-0 active:scale-95 transition shadow-xs cursor-pointer"
+                    title="Faahfaahin Safarka / View Full Trip Breakdown"
+                  >
+                    <span>Faahfaahin</span>
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* Carpool Rider Switcher (if dual carpool) */}
+                {currentRide.coPassenger && (
+                  <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-800/80 p-1.5 rounded-2xl text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setActiveCarpoolRider('A')}
+                      className={`py-1.5 px-2 rounded-xl font-black text-center transition ${
+                        activeCarpoolRider === 'A'
+                          ? 'bg-emerald-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-white/50'
+                      }`}
+                    >
+                      <span>Rider A: {currentRide.passengerName?.split(' ')[0] || 'A'}</span>
+                      <span className="block text-[10px] font-mono opacity-90">${(Number(currentRide.totalFare) || 0).toFixed(2)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActiveCarpoolRider('B')}
+                      className={`py-1.5 px-2 rounded-xl font-black text-center transition ${
+                        activeCarpoolRider === 'B'
+                          ? 'bg-teal-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-300 hover:bg-white/50'
+                      }`}
+                    >
+                      <span>Rider B: {currentRide.coPassenger?.name?.split(' ')[0] || 'B'}</span>
+                      <span className="block text-[10px] font-mono opacity-90">${(Number(currentRide.coPassenger?.fare) || 1.50).toFixed(2)}</span>
+                    </button>
+                  </div>
+                )}
+
+                {/* Passenger Avatar, Name, 4.9 Rating & Fares */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="w-10 h-10 rounded-full bg-[#008751] text-white font-bold flex items-center justify-center text-sm shadow shrink-0">
+                      {(activeCarpoolRider === 'B' && currentRide.coPassenger ? currentRide.coPassenger.name : currentRide.passengerName)?.charAt(0) || 'P'}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="text-xs font-black text-slate-900 dark:text-white truncate">
+                          {activeCarpoolRider === 'B' && currentRide.coPassenger ? currentRide.coPassenger.name : currentRide.passengerName}
+                        </span>
+                        <span className="flex items-center text-[10px] font-bold text-amber-500 shrink-0">
+                          ★ 4.9
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-500 font-medium truncate">
+                        {activeCarpoolRider === 'B' && currentRide.coPassenger
+                          ? `Dropoff: ${currentRide.coPassenger.dropoffLocation?.name || 'Destination'}`
+                          : `Dropoff: ${currentRide.dropoff?.name || 'Destination'}`}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Fares in USD & SLSH */}
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-black text-[#008751] font-mono">
+                      ${(
+                        currentRide.coPassenger
+                          ? (Number(currentRide.totalFare) || 0) + (Number(currentRide.coPassenger.fare) || 0)
+                          : Number(currentRide.totalFare) || 0
+                      ).toFixed(2)} USD
+                    </div>
+                    <div className="text-[9px] text-slate-400 font-medium">
+                      {Math.round(
+                        (currentRide.coPassenger
+                          ? (Number(currentRide.totalFare) || 0) + (Number(currentRide.coPassenger.fare) || 0)
+                          : Number(currentRide.totalFare) || 0) * EXCHANGE_RATE_USD_TO_SLSH
+                      ).toLocaleString()} SLSH
+                    </div>
+                  </div>
+                </div>
+
+                {/* 1-Tap Quick Actions Bar: Chat, Call, Transfer, SOS */}
+                <div className="grid grid-cols-4 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowChatModal(true)}
+                    className="relative py-2 px-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[11px] flex items-center justify-center space-x-1 transition active:scale-95 cursor-pointer"
+                    title="Sheeko / In-App Chat"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Chat</span>
+                    {unreadChatCount > 0 && (
+                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[9px] font-black flex items-center justify-center animate-pulse">
+                        {unreadChatCount}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={initiateVoiceCall}
+                    className="py-2 px-1 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[11px] flex items-center justify-center space-x-1 transition active:scale-95 cursor-pointer"
+                    title="Wac / Phone Call"
+                  >
+                    <PhoneCall className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Wac</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowTransferModal(true)}
+                    className="py-2 px-1 rounded-xl bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold text-[11px] flex items-center justify-center space-x-1 transition active:scale-95 border border-amber-200 dark:border-amber-800 cursor-pointer"
+                    title="Wareeji / Transfer Ride"
+                  >
+                    <RotateCw className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Wareeji</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowSosModal(true)}
+                    className="py-2 px-1 rounded-xl bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 font-bold text-[11px] flex items-center justify-center space-x-1 transition active:scale-95 border border-rose-200 dark:border-rose-800 cursor-pointer"
+                    title="Xaalad Degdeg / Emergency SOS"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5 text-rose-600" />
+                    <span>SOS</span>
+                  </button>
+                </div>
+
+                {/* Prominent Touch-Friendly Primary Milestone Action Button */}
+                <div className="pt-1">
+                  {currentRide.coPassenger ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (activeCarpoolRider === 'A') {
+                          if (currentRide.status === 'accepted') advanceIndividualRiderAction('RIDER_A', 'arrived');
+                          else if (currentRide.status === 'driver_arrived') advanceIndividualRiderAction('RIDER_A', 'pickup');
+                          else advanceIndividualRiderAction('RIDER_A', 'dropoff');
+                        } else {
+                          const coStatus = currentRide.coPassenger?.status;
+                          if (!coStatus || coStatus === 'matched') advanceIndividualRiderAction('RIDER_B', 'arrived');
+                          else if (coStatus === 'picking_up') advanceIndividualRiderAction('RIDER_B', 'pickup');
+                          else advanceIndividualRiderAction('RIDER_B', 'dropoff');
+                        }
+                      }}
+                      className="w-full py-3.5 px-4 rounded-2xl bg-[#008751] hover:bg-[#007445] text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>
+                        {activeCarpoolRider === 'A'
+                          ? currentRide.status === 'accepted'
+                            ? '📍 Gaadhay Goobta (Rider A)'
+                            : currentRide.status === 'driver_arrived'
+                            ? '🚗 Bilow Safarka (Rider A)'
+                            : '✅ Dhammee Safarka Rider A'
+                          : currentRide.coPassenger?.status === 'picking_up'
+                          ? '🚗 Bilow Safarka (Rider B)'
+                          : currentRide.coPassenger?.status === 'picked_up'
+                          ? '✅ Dhammee Safarka Rider B'
+                          : '📍 Gaadhay Goobta (Rider B)'}
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        advanceDriverRideState();
+                        if (currentRide.status === 'accepted') {
+                          voiceNavigationService.speak('Arrived at pickup. Waiting for passenger.', 'en', true);
+                        } else if (currentRide.status === 'driver_arrived') {
+                          voiceNavigationService.speak('Trip started. Heading to destination.', 'en', true);
+                        } else if (currentRide.status === 'in_progress') {
+                          voiceNavigationService.speak('Trip completed. Please collect fare.', 'en', true);
+                        }
+                      }}
+                      className="w-full py-3.5 px-4 rounded-2xl bg-[#008751] hover:bg-[#007445] text-white font-black text-xs uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>
+                        {currentRide.status === 'accepted'
+                          ? '📍 Gaadhay Goobta Kaqabashada (Arrived at Pickup)'
+                          : currentRide.status === 'driver_arrived'
+                          ? '🚗 Bilow Safarka (Start Trip)'
+                          : '✅ Dhammee Safarka & Qaado Lacagta (Complete Trip)'}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              /* EXPANDABLE FAAHFAAHIN (DETAILS) DRAWER WITH FULL BREAKDOWN & QUICK COLLAPSE TO FULL MAP */
+              <div className="bg-white dark:bg-slate-900 rounded-3xl p-4 sm:p-5 shadow-2xl border-2 border-emerald-500/80 relative overflow-hidden space-y-3.5 max-h-[75vh] overflow-y-auto">
+                {/* Drawer Header with Prominent Button to Collapse Back to Full Map */}
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
+                  <div className="flex items-center space-x-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                      Faahfaahin Safarka • Trip Details
+                    </h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowDetailsDrawer(false);
+                      setIsFullMapMode(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center space-x-1.5 shadow-md active:scale-95 transition cursor-pointer"
+                    title="Ku laabo Khariidada Buuxda / Collapse to Full Map"
+                  >
+                    <Map className="w-3.5 h-3.5" />
+                    <span>Khariidad Buuxda</span>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+
+                {/* DUAL CONTROL PANEL FOR STACKED / CARPOOL RIDES OR SINGLE RIDER */}
+                {currentRide.coPassenger ? (
+                  /* DUAL CONTROL PANEL FOR STACKED / CARPOOL RIDES */
+                  <div className="space-y-3.5">
                 {/* 1. Wadaage Carpool Header & Priority Switcher */}
                 <div className="bg-slate-900 rounded-3xl p-4 text-white space-y-3 shadow-md border border-slate-800">
                   <div className="flex items-center justify-between">
@@ -1592,6 +1808,8 @@ export const MobileDriverApp: React.FC = () => {
                     </button>
                   </div>
                 </div>
+              </div>
+            )}
               </div>
             )
           ) : driverModeOnline ? (

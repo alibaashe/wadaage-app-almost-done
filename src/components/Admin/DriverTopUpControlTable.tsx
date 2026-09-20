@@ -27,6 +27,7 @@ export const DriverTopUpControlTable: React.FC = () => {
     rejectDriverPendingTransaction,
     adminDirectCreditDriverWallet,
     drivers,
+    getDriverWalletBalance,
     driverWalletBalanceUsd
   } = useRide();
 
@@ -152,11 +153,14 @@ export const DriverTopUpControlTable: React.FC = () => {
                   onChange={(e) => setDirectDriverId(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-white font-bold outline-none focus:border-emerald-500"
                 >
-                  {drivers.map((drv) => (
-                    <option key={drv.id} value={drv.id}>
-                      {drv.name} ({drv.phone})
-                    </option>
-                  ))}
+                  {drivers.map((drv) => {
+                    const b = getDriverWalletBalance(drv.id) || (drv.phone ? getDriverWalletBalance(drv.phone) : 0);
+                    return (
+                      <option key={drv.id} value={drv.id}>
+                        {drv.name} ({drv.phone}) — Balance: ${b.toFixed(2)} ({(b * 10000).toLocaleString()} SOS)
+                      </option>
+                    );
+                  })}
                 </select>
               )}
             </div>
@@ -301,6 +305,14 @@ export const DriverTopUpControlTable: React.FC = () => {
                           <span>•</span>
                           <span>Submitted: {tx.date}</span>
                         </p>
+                        {(() => {
+                          const bal = getDriverWalletBalance(tx.driverId) || (tx.driverPhone ? getDriverWalletBalance(tx.driverPhone) : 0);
+                          return (
+                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 font-mono mt-0.5 block">
+                              Wallet Balance: ${bal.toFixed(2)} ({(bal * 10000).toLocaleString()} SOS)
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
 
@@ -462,6 +474,14 @@ export const DriverTopUpControlTable: React.FC = () => {
                           {tx.driverName || 'Captain / Driver'}
                         </span>
                         <span className="text-[10px] text-slate-500 font-mono">{tx.driverPhone || 'N/A'}</span>
+                        {(() => {
+                          const bal = getDriverWalletBalance(tx.driverId) || (tx.driverPhone ? getDriverWalletBalance(tx.driverPhone) : 0);
+                          return (
+                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 font-mono block">
+                              Bal: ${bal.toFixed(2)}
+                            </span>
+                          );
+                        })()}
                       </td>
 
                       <td className="py-3 px-3">

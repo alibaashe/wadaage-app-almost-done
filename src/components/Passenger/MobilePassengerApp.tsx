@@ -438,17 +438,22 @@ export const MobilePassengerApp: React.FC = () => {
               <UnifiedMap height="100%" />
 
               {/* Floating GPS Button on right */}
-              {!currentRide && (
-                <div className="absolute top-36 right-3 z-20 flex flex-col space-y-2 select-none">
-                  <button
-                    type="button"
-                    onClick={() => detectUserRealLocation()}
-                    disabled={isDetectingLocation}
-                    className="w-10 h-10 rounded-full bg-white border border-slate-200 shadow-md flex items-center justify-center text-[#0066F5] hover:bg-slate-50 active:scale-95 transition cursor-pointer"
-                    title="Goobteyda GPS"
-                  >
-                    <Crosshair className={`w-5 h-5 ${isDetectingLocation ? 'animate-spin text-amber-500' : ''}`} />
-                  </button>
+              <div className="absolute top-36 right-3 z-20 flex flex-col space-y-2 select-none">
+                <button
+                  type="button"
+                  onClick={() => detectUserRealLocation()}
+                  disabled={isDetectingLocation}
+                  className="w-10 h-10 rounded-full bg-white/95 backdrop-blur-sm border border-slate-200 shadow-md flex items-center justify-center text-[#0066F5] hover:bg-white active:scale-95 transition cursor-pointer"
+                  title="Goobteyda GPS"
+                >
+                  <Crosshair className={`w-5 h-5 ${isDetectingLocation ? 'animate-spin text-amber-500' : ''}`} />
+                </button>
+              </div>
+
+              {/* ACTIVE RIDE CARD OVERLAY - Floating docked at bottom of full-bleed map */}
+              {currentRide && currentRide.status !== 'searching' && (
+                <div className="absolute bottom-3 inset-x-3 z-30 max-w-md mx-auto pointer-events-auto">
+                  <ActiveRideCard onOpenSafetyModal={() => setShowSafetyModal(true)} />
                 </div>
               )}
             </div>
@@ -510,13 +515,6 @@ export const MobilePassengerApp: React.FC = () => {
                 >
                   {t.cancelSearch}
                 </button>
-              </div>
-            )}
-
-            {/* ACTIVE RIDE CARD */}
-            {currentRide && currentRide.status !== 'searching' && (
-              <div className="relative z-30 max-w-md w-full mx-auto shadow-2xl">
-                <ActiveRideCard onOpenSafetyModal={() => setShowSafetyModal(true)} />
               </div>
             )}
 

@@ -580,7 +580,7 @@ export const UserManagementTable: React.FC = () => {
                   {u.role === 'Driver' ? (
                     <div>
                       {(() => {
-                        const bal = getDriverWalletBalance(u.id);
+                        const bal = getDriverWalletBalance(u.id) || (u.phone ? getDriverWalletBalance(u.phone) : 0);
                         return (
                           <>
                             <span className="text-emerald-500 font-mono">
@@ -596,7 +596,7 @@ export const UserManagementTable: React.FC = () => {
                   ) : (
                     <div>
                       {(() => {
-                        const passBal = getUserWalletBalance(u.id);
+                        const passBal = getUserWalletBalance(u.id) || (u.phone ? getUserWalletBalance(u.phone) : 0);
                         return (
                           <>
                             <span className="text-emerald-400 font-mono">
@@ -680,8 +680,8 @@ export const UserManagementTable: React.FC = () => {
         const isDriver = targetUser?.role === 'Driver';
         const currentBal = targetUser
           ? isDriver
-            ? getDriverWalletBalance(targetUser.id)
-            : getUserWalletBalance(targetUser.id)
+            ? (getDriverWalletBalance(targetUser.id) || (targetUser.phone ? getDriverWalletBalance(targetUser.phone) : 0))
+            : (getUserWalletBalance(targetUser.id) || (targetUser.phone ? getUserWalletBalance(targetUser.phone) : 0))
           : 0;
 
         return (
