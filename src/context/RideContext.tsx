@@ -3948,7 +3948,52 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
 
-    // Deduct 1,000 SLSH ($0.10 USD) platform commission fee upon rider drop-off
+    // Check if ride service type is strictly 'Wadaage Share'
+    const isWadaageShareOrder =
+      completedRideObj.category === 'wadaage_share' ||
+      completedRideObj.service_type === 'Wadaage' ||
+      completedRideObj.categoryName === 'Wadaage Share' ||
+      completedRideObj.isShared === true;
+
+    // If order is 'Normal Taxi' (not Wadaage Share), bypass platform commission deduction
+    if (!isWadaageShareOrder) {
+      console.log(`[Commission Bypass] Ride ${completedRideObj.id} is Normal Taxi order. Skipping 1,000 SLSH commission deduction.`);
+
+      // Still add earnings to driver stats and trigger server finish without commission deduction
+      setDrivers((prev) =>
+        prev.map((d) => {
+          const isMatch =
+            d.id === targetDriverId ||
+            (targetDriverPhone && d.phone === targetDriverPhone) ||
+            (currentUser?.id && d.id === currentUser.id) ||
+            (currentUser?.phone && d.phone === currentUser.phone);
+
+          if (isMatch) {
+            return {
+              ...d,
+              todayEarnings: Math.round((d.todayEarnings + totalCollectedFare) * 100) / 100,
+              weeklyEarnings: Math.round((d.weeklyEarnings + totalCollectedFare) * 100) / 100,
+              totalTrips: d.totalTrips + 1,
+            };
+          }
+          return d;
+        })
+      );
+
+      fetch(getApiUrl(`/api/rides/${completedRideObj.id}/finish`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driverId: targetDriverId,
+          finalFare: totalCollectedFare,
+          isWadaageShare: false,
+        }),
+      }).catch(() => {});
+
+      return;
+    }
+
+    // Deduct 1,000 SLSH ($0.10 USD) platform commission fee ONLY upon Wadaage Share rider drop-off
     const commissionSos = 1000;
     const commissionUsd = 0.10;
 
@@ -3997,6 +4042,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       body: JSON.stringify({
         driverId: targetDriverId,
         finalFare: totalCollectedFare,
+        isWadaageShare: true,
       }),
     })
       .then((res) => res.ok ? res.json() : null)

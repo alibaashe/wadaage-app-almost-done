@@ -1550,7 +1550,7 @@ Return ONLY valid JSON matching this schema:
   // SERVER-AUTHORITATIVE ATOMIC FINISH RIDE & COMMISSION DEDUCTION ENDPOINT
   app.post('/api/rides/:rideId/finish', (req, res) => {
     const { rideId } = req.params;
-    const { driverId, finalFare } = req.body;
+    const { driverId, finalFare, isWadaageShare } = req.body;
 
     if (!rideId) {
       return res.status(400).json({ success: false, error: 'rideId is required' });
@@ -1569,29 +1569,11 @@ Return ONLY valid JSON matching this schema:
     const targetDriverId = driverId || existing?.assignedDriverId || 'drv_01';
     const totalCollectedFare = Number(finalFare || existing?.totalFare || 0);
 
-    // Deduct 1,000 SLSH ($0.10 USD) platform commission fee
-    const commissionSos = 1000;
-    const commissionUsd = 0.10;
+    const isShareOrder = isWadaageShare !== undefined
+      ? Boolean(isWadaageShare)
+      : (existing && (existing.category === 'wadaage_share' || existing.service_type === 'Wadaage' || existing.isShared));
 
-    const commTx = {
-      id: `dtx_dropoff_${Date.now()}`,
-      driverId: targetDriverId,
-      user_id: targetDriverId,
-      transaction_type: 'commission',
-      type: 'commission_deduction',
-      amountUsd: -commissionUsd,
-      amount_usd: -commissionUsd,
-      amountSos: -commissionSos,
-      title: `Ride Drop-Off Commission Deducted (-1,000 SLSH) (Ride #${rideId.slice(-6)})`,
-      date: new Date().toISOString().replace('T', ' ').substring(0, 16),
-      status: 'completed',
-      rideId,
-    };
-
-    // Persist transaction & update driver balance in database store
-    dbService.store.wallet_transactions.unshift(commTx);
-    dbService.syncTransactionToMySQL(commTx).catch(() => {});
-
+    let commTx: any = null;
     const cleanTargetPhone = String(targetDriverId).replace(/\D/g, '');
     const driverInDb = dbService.store.drivers.find(
       (d: any) =>
@@ -1600,16 +1582,42 @@ Return ONLY valid JSON matching this schema:
         (d.phone && d.phone === targetDriverId) ||
         (cleanTargetPhone && d.phone && String(d.phone).replace(/\D/g, '') === cleanTargetPhone)
     );
-    if (driverInDb) {
-      const curBal = Number(driverInDb.wallet_balance_usd || driverInDb.walletBalanceUsd || 0);
-      const newBal = Math.max(0, Math.round((curBal - commissionUsd) * 100) / 100);
-      driverInDb.wallet_balance_usd = newBal;
-      driverInDb.walletBalanceUsd = newBal;
-      if (newBal < 0.10) {
-        driverInDb.status = 'offline';
-        driverInDb.is_online = 0;
+
+    // Deduct 1,000 SLSH ($0.10 USD) platform commission fee ONLY if trip is Wadaage Share
+    if (isShareOrder) {
+      const commissionSos = 1000;
+      const commissionUsd = 0.10;
+
+      commTx = {
+        id: `dtx_dropoff_${Date.now()}`,
+        driverId: targetDriverId,
+        user_id: targetDriverId,
+        transaction_type: 'commission',
+        type: 'commission_deduction',
+        amountUsd: -commissionUsd,
+        amount_usd: -commissionUsd,
+        amountSos: -commissionSos,
+        title: `Ride Drop-Off Commission Deducted (-1,000 SLSH) (Ride #${rideId.slice(-6)})`,
+        date: new Date().toISOString().replace('T', ' ').substring(0, 16),
+        status: 'completed',
+        rideId,
+      };
+
+      // Persist transaction & update driver balance in database store
+      dbService.store.wallet_transactions.unshift(commTx);
+      dbService.syncTransactionToMySQL(commTx).catch(() => {});
+
+      if (driverInDb) {
+        const curBal = Number(driverInDb.wallet_balance_usd || driverInDb.walletBalanceUsd || 0);
+        const newBal = Math.max(0, Math.round((curBal - commissionUsd) * 100) / 100);
+        driverInDb.wallet_balance_usd = newBal;
+        driverInDb.walletBalanceUsd = newBal;
+        if (newBal < 0.10) {
+          driverInDb.status = 'offline';
+          driverInDb.is_online = 0;
+        }
+        dbService.syncDriverToMySQL(driverInDb).catch(() => {});
       }
-      dbService.syncDriverToMySQL(driverInDb).catch(() => {});
     }
 
     if (existing) {
@@ -1623,19 +1631,21 @@ Return ONLY valid JSON matching this schema:
     // Broadcast update to all connected clients
     broadcastRidesToClients('RIDE_STATUS_UPDATED');
 
-    const ssePayload = `data: ${JSON.stringify({
-      type: 'DRIVER_WALLET_UPDATED',
-      driverId: targetDriverId,
-      driverPhone: driverInDb?.phone,
-      amountUsd: -commissionUsd,
-      amountSos: -commissionSos,
-      newBalanceUsd: driverInDb ? driverInDb.wallet_balance_usd : undefined,
-      tx: commTx,
-      timestamp: Date.now(),
-    })}\n\n`;
+    if (isShareOrder) {
+      const ssePayload = `data: ${JSON.stringify({
+        type: 'DRIVER_WALLET_UPDATED',
+        driverId: targetDriverId,
+        driverPhone: driverInDb?.phone,
+        amountUsd: -0.10,
+        amountSos: -1000,
+        newBalanceUsd: driverInDb ? driverInDb.wallet_balance_usd : undefined,
+        tx: commTx,
+        timestamp: Date.now(),
+      })}\n\n`;
 
-    for (const client of sseClients) {
-      try { client.write(ssePayload); } catch (_e) { sseClients.delete(client); }
+      for (const client of sseClients) {
+        try { client.write(ssePayload); } catch (_e) { sseClients.delete(client); }
+      }
     }
 
     return res.json({
@@ -1643,7 +1653,9 @@ Return ONLY valid JSON matching this schema:
       alreadyFinished: false,
       ride: existing || { id: rideId, status: 'completed' },
       commissionTx: commTx,
-      message: 'Ride finished successfully and -1,000 SLSH ($0.10) commission deducted.',
+      message: isShareOrder
+        ? 'Ride finished successfully and -1,000 SLSH ($0.10) commission deducted.'
+        : 'Normal Taxi ride finished successfully without commission deduction.',
     });
   });
 
