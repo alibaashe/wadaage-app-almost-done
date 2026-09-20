@@ -18,7 +18,7 @@ import {
   CreditCard,
   QrCode
 } from 'lucide-react';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useRide } from '../../context/RideContext';
 import { formatCurrency, EXCHANGE_RATE_USD_TO_SLSH } from '../../utils/geo';
 import { WadaageLogo } from '../Common/WadaageLogo';
@@ -30,10 +30,8 @@ interface WadaageDriverWalletModalProps {
 
 export const WadaageDriverWalletModal: React.FC<WadaageDriverWalletModalProps> = ({ isOpen, onClose }) => {
   const {
-    driverWallets,
     driverWalletBalanceUsd,
     driverWalletTransactions,
-    getDriverWalletBalance,
     topUpDriverWallet,
     pricing,
     driverModeOnline,
@@ -52,26 +50,6 @@ export const WadaageDriverWalletModal: React.FC<WadaageDriverWalletModalProps> =
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [copiedUSSD, setCopiedUSSD] = useState(false);
 
-  // Dedicated reactive balance state variable tracking live driver balance
-  const activeDriverId = currentUser?.role === 'driver' ? (currentUser.id || currentUser.phone || 'drv_01') : 'drv_01';
-  const calculateCurrentBalanceUsd = () => {
-    const directBal = getDriverWalletBalance ? getDriverWalletBalance(activeDriverId) : 0;
-    if (directBal !== undefined && directBal > 0) return directBal;
-    if (currentUser?.phone && getDriverWalletBalance) {
-      const phoneBal = getDriverWalletBalance(currentUser.phone);
-      if (phoneBal !== undefined && phoneBal > 0) return phoneBal;
-    }
-    return driverWalletBalanceUsd !== undefined ? driverWalletBalanceUsd : 0;
-  };
-
-  const [activeBalanceUsd, setActiveBalanceUsd] = useState<number>(calculateCurrentBalanceUsd);
-
-  // Force React useEffect synchronization hook watching real-time driver wallet state changes
-  useEffect(() => {
-    const freshBal = calculateCurrentBalanceUsd();
-    setActiveBalanceUsd(freshBal);
-  }, [driverWallets, driverWalletBalanceUsd, driverWalletTransactions, activeDriverId, currentUser, drivers, getDriverWalletBalance]);
-
   if (!isOpen) return null;
 
   const currentDriverRecord = drivers.find(
@@ -80,7 +58,7 @@ export const WadaageDriverWalletModal: React.FC<WadaageDriverWalletModalProps> =
 
   const minThresholdUsd = pricing.driverMinWalletThresholdUsd || 0.10;
   const minThresholdSos = Math.round(minThresholdUsd * EXCHANGE_RATE_USD_TO_SLSH); // 1,000 SLSH
-  const currentSos = Math.round(activeBalanceUsd * EXCHANGE_RATE_USD_TO_SLSH);
+  const currentSos = Math.round(driverWalletBalanceUsd * EXCHANGE_RATE_USD_TO_SLSH);
   const feeUsd = pricing.driverCommissionFeeUsd || 0.10;
   const feeSos = Math.round(feeUsd * EXCHANGE_RATE_USD_TO_SLSH); // 1,000 SLSH
 
@@ -221,7 +199,7 @@ export const WadaageDriverWalletModal: React.FC<WadaageDriverWalletModalProps> =
                 {currentSos.toLocaleString()} SLSH
               </span>
               <span className="text-sm font-bold text-emerald-400 font-mono">
-                (${activeBalanceUsd.toFixed(2)} USD)
+                (${driverWalletBalanceUsd.toFixed(2)} USD)
               </span>
             </div>
 

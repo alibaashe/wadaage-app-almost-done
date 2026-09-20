@@ -1569,6 +1569,7 @@ Return ONLY valid JSON matching this schema:
     const targetDriverId = driverId || existing?.assignedDriverId || 'drv_01';
     const totalCollectedFare = Number(finalFare || existing?.totalFare || 0);
 
+    // Deduct 1,000 SLSH ($0.10 USD) platform commission fee
     const commissionSos = 1000;
     const commissionUsd = 0.10;
 
@@ -1599,7 +1600,6 @@ Return ONLY valid JSON matching this schema:
         (d.phone && d.phone === targetDriverId) ||
         (cleanTargetPhone && d.phone && String(d.phone).replace(/\D/g, '') === cleanTargetPhone)
     );
-
     if (driverInDb) {
       const curBal = Number(driverInDb.wallet_balance_usd || driverInDb.walletBalanceUsd || 0);
       const newBal = Math.max(0, Math.round((curBal - commissionUsd) * 100) / 100);
@@ -1627,8 +1627,8 @@ Return ONLY valid JSON matching this schema:
       type: 'DRIVER_WALLET_UPDATED',
       driverId: targetDriverId,
       driverPhone: driverInDb?.phone,
-      amountUsd: -0.10,
-      amountSos: -1000,
+      amountUsd: -commissionUsd,
+      amountSos: -commissionSos,
       newBalanceUsd: driverInDb ? driverInDb.wallet_balance_usd : undefined,
       tx: commTx,
       timestamp: Date.now(),

@@ -205,7 +205,6 @@ interface RideContextType {
     petFriendly: boolean;
   }>>;
   // Driver Prepaid Commission Wallet
-  driverWallets: Record<string, number>;
   driverWalletBalanceUsd: number;
   driverWalletTransactions: DriverWalletTransaction[];
   getDriverWalletBalance: (driverId: string) => number;
@@ -403,12 +402,6 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = (user: AuthUser) => {
-    // Invalidate stale balance caches on login so new/switching driver fetches fresh server balance
-    try {
-      localStorage.removeItem('wadaage_driver_wallet_balance');
-    } catch (e) {
-      console.error(e);
-    }
     setCurrentUser(user);
     setIsAuthenticated(true);
     setRoleState(user.role);
@@ -432,15 +425,9 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       secureStorage.removeItem('wadaage_auth_user');
       secureStorage.removeItem(`wadaage_auth_${role}`);
-      // Completely invalidate local balance caches on logout so next driver never inherits stale balance display
-      localStorage.removeItem('wadaage_driver_wallet_balance');
-      localStorage.removeItem('wadaage_driver_wallets_map');
-      localStorage.removeItem('wadaage_driver_wallet_transactions');
     } catch (e) {
       console.error(e);
     }
-    setDriverWallets({});
-    setDriverWalletTransactions([]);
     setCurrentUser(null);
     setIsAuthenticated(false);
   };
@@ -940,10 +927,8 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Filter available candidates
     const eligible = availableDrivers.filter((drv) => {
-      // 1. Must be online, not occupied with another non-share trip, AND have prepaid wallet balance >= 0.10 USD (1,000 SLSH)
-      const minThresholdUsd = pricing?.driverMinWalletThresholdUsd || 0.10;
-      const drvBal = drv.walletBalanceUsd !== undefined ? Number(drv.walletBalanceUsd) : (getDriverWalletBalance ? getDriverWalletBalance(drv.id) : 0);
-      if (drv.status === 'busy' || drv.status === 'offline' || drvBal < minThresholdUsd) return false;
+      // 1. Must be online and not occupied with another non-share trip
+      if (drv.status === 'busy' || drv.status === 'offline') return false;
 
       // 2. Must not have declined this order
       if (declinedDriverIds.includes(drv.id) || (drv.phone && declinedDriverIds.includes(drv.phone))) {
@@ -2672,14 +2657,11 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       walletBalanceUsd: 0,
     };
 
-    let calculatedNewBalanceUsd = 0;
-
     // 1. Credit ONLY this specific driver in driverWallets map
     setDriverWallets((prev) => {
       const currentBal = prev[driverId] !== undefined ? prev[driverId] : (getDriverWalletBalance(driverId) || 0);
-      calculatedNewBalanceUsd = Math.max(0, Math.round((currentBal + amountUsd) * 100) / 100);
-      const updated = { ...prev, [driverId]: calculatedNewBalanceUsd };
-      if (targetDriver.phone) updated[targetDriver.phone] = calculatedNewBalanceUsd;
+      const newBal = Math.max(0, Math.round((currentBal + amountUsd) * 100) / 100);
+      const updated = { ...prev, [driverId]: newBal };
       try {
         localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(updated));
       } catch (e) {
@@ -2693,10 +2675,12 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDrivers((prev) =>
       prev.map((d) => {
         if (d.id === driverId || d.phone === driverId) {
+          const currentBal = d.walletBalanceUsd !== undefined ? d.walletBalanceUsd : 0;
+          const newBal = Math.max(0, Math.round((currentBal + amountUsd) * 100) / 100);
           return {
             ...d,
-            walletBalanceUsd: calculatedNewBalanceUsd,
-            status: calculatedNewBalanceUsd >= minThresholdUsd ? 'available' : d.status,
+            walletBalanceUsd: newBal,
+            status: newBal >= minThresholdUsd ? 'available' : d.status,
           };
         }
         return d;
@@ -2722,13 +2706,8 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       adminNote: note || `Directly credited ${amountSos.toLocaleString()} SOS ($${amountUsd.toFixed(2)}) by Dispatch Admin`,
     };
 
-    setDriverWalletTransactions((prev) => {
-      if (prev.some((t) => t.id === newTx.id)) return prev;
-      return [newTx, ...prev];
-    });
+    setDriverWalletTransactions((prev) => [newTx, ...prev]);
     saveTransactionToFirestore(newTx);
-
-    // Post to backend database endpoint with explicit newBalanceUsd to prevent +2x duplication
     fetch(getApiUrl('/api/db/wallet-transactions'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2743,14 +2722,11 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
         amountSos,
       }),
     }).catch(() => {});
-
-    // Broadcast update with absolute newBalanceUsd so remote listeners do not apply double addition
     broadcastRideEvent('DRIVER_WALLET_UPDATED', {
       driverId: targetDriver.id,
       driverPhone: targetDriver.phone,
       amountUsd,
       amountSos,
-      newBalanceUsd: calculatedNewBalanceUsd,
       tx: newTx,
     });
 
@@ -3927,7 +3903,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   // Complete trip earnings logic & deduct 1,000 SLSH platform commission upon rider drop-off
-  const handleTripCommissionAndEarnings = async (completedRideObj: RideRequest) => {
+  const handleTripCommissionAndEarnings = (completedRideObj: RideRequest) => {
     if (!completedRideObj || !completedRideObj.id) return;
 
     // Deduplication Guard: Ensure platform commission & earnings are processed EXACTLY ONCE per ride
@@ -3959,13 +3935,10 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
 
-    // Deduct 1,000 SLSH ($0.10 USD) platform commission fee upon EVERY completed ride (Wadaage Share AND Normal Taxi)
+    // Deduct 1,000 SLSH ($0.10 USD) platform commission fee upon rider drop-off
     const commissionSos = 1000;
     const commissionUsd = 0.10;
 
-    let serverConfirmedBalanceUsd: number | undefined;
-
-    // 1. Immediate optimistic reactive state binding dispatch for real-time UI re-rendering
     let newDriverBalance = 0;
     setDriverWallets((prev) => {
       const cur = (targetDriverId && prev[targetDriverId] !== undefined)
@@ -3975,10 +3948,9 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
         : (getDriverWalletBalance(targetDriverId) || getDriverWalletBalance(targetDriverPhone) || 0);
 
       newDriverBalance = Math.max(0, Math.round((cur - commissionUsd) * 100) / 100);
-
       const updated = { ...prev };
 
-      // Synchronize all keys corresponding to this driver so final balance is strictly updated in real time
+      // Synchronize all keys corresponding to this driver so final balance is always updated
       if (targetDriverId) updated[targetDriverId] = newDriverBalance;
       if (targetDriverPhone) updated[targetDriverPhone] = newDriverBalance;
       if (currentUser?.id) updated[currentUser.id] = newDriverBalance;
@@ -3994,43 +3966,9 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (matchedDriver.phone) updated[matchedDriver.phone] = newDriverBalance;
       }
 
-      try {
-        localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(updated));
-        localStorage.setItem('wadaage_driver_wallet_balance', JSON.stringify(newDriverBalance));
-      } catch (_e) {}
+      try { localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(updated)); } catch (_e) {}
       return updated;
     });
-
-    // 2. Execute server network request to ledger finish endpoint in background to sync server balance
-    fetch(getApiUrl(`/api/rides/${completedRideObj.id}/finish`), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        driverId: targetDriverId,
-        finalFare: totalCollectedFare,
-      }),
-    })
-      .then((res) => res.ok ? res.json() : null)
-      .then((data) => {
-        if (data && data.success && data.commissionTx && data.commissionTx.newBalanceUsd !== undefined) {
-          const serverBal = Number(data.commissionTx.newBalanceUsd);
-          setDriverWallets((prev) => {
-            const updated = { ...prev };
-            if (targetDriverId) updated[targetDriverId] = serverBal;
-            if (targetDriverPhone) updated[targetDriverPhone] = serverBal;
-            if (currentUser?.id) updated[currentUser.id] = serverBal;
-            if (currentUser?.phone) updated[currentUser.phone] = serverBal;
-            try {
-              localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(updated));
-              localStorage.setItem('wadaage_driver_wallet_balance', JSON.stringify(serverBal));
-            } catch (_e) {}
-            return updated;
-          });
-        }
-      })
-      .catch((err) => {
-        console.warn('[Trip Completion] Server ledger finish call background sync:', err);
-      });
 
     const commTx: DriverWalletTransaction = {
       id: `dtx_dropoff_${Date.now()}`,
@@ -4047,6 +3985,18 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDriverWalletTransactions((prev) => [commTx, ...prev]);
     saveTransactionToFirestore(commTx);
 
+    // Call server-authoritative finish endpoint
+    try {
+      fetch(getApiUrl(`/api/rides/${completedRideObj.id}/finish`), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          driverId: targetDriverId,
+          finalFare: totalCollectedFare,
+        }),
+      }).catch(() => {});
+    } catch (_e) {}
+
     const minThresholdUsd = pricing.driverMinWalletThresholdUsd || 0.10;
 
     // Add collected fare to driver earnings & deduct commission from balance across matching drivers
@@ -4059,7 +4009,8 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
           (currentUser?.phone && d.phone === currentUser.phone);
 
         if (isMatch) {
-          const nextBal = newDriverBalance;
+          const currentBal = d.walletBalanceUsd !== undefined ? d.walletBalanceUsd : 0;
+          const nextBal = Math.max(0, Math.round((currentBal - commissionUsd) * 100) / 100);
           return {
             ...d,
             walletBalanceUsd: nextBal,
@@ -5038,7 +4989,6 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addSplitFriend,
         rideOptions,
         setRideOptions,
-        driverWallets,
         driverWalletBalanceUsd,
         driverWalletTransactions,
         getDriverWalletBalance,
