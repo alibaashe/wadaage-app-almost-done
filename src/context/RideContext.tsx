@@ -205,6 +205,7 @@ interface RideContextType {
     petFriendly: boolean;
   }>>;
   // Driver Prepaid Commission Wallet
+  driverWallets: Record<string, number>;
   driverWalletBalanceUsd: number;
   driverWalletTransactions: DriverWalletTransaction[];
   getDriverWalletBalance: (driverId: string) => number;
@@ -5026,6 +5027,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addSplitFriend,
         rideOptions,
         setRideOptions,
+        driverWallets,
         driverWalletBalanceUsd,
         driverWalletTransactions,
         getDriverWalletBalance,
