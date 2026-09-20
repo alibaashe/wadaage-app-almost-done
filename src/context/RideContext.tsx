@@ -839,18 +839,9 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    // Telemetry Heartbeat: ensures continuous live real-time position updates if GPS stream is quiet
+    // Telemetry Heartbeat: maintains stationary hardware GPS status without random drift
     heartbeatTimer = setInterval(() => {
       setDriverGpsStatus((current) => {
-        const timeSinceLastUpdate = Date.now() - current.lastUpdated;
-        if (timeSinceLastUpdate > 5000) {
-          // Micro-movement drift simulation keeping vehicle live on radar
-          const deltaLat = (Math.random() - 0.5) * 0.00008;
-          const deltaLng = (Math.random() - 0.5) * 0.00008;
-          const newLat = current.lat + deltaLat;
-          const newLng = current.lng + deltaLng;
-          updateDriverLiveCoordinates(newLat, newLng, 8, 30, 8, current.isRealHardwareGps);
-        }
         return current;
       });
     }, 5000);
@@ -2270,6 +2261,8 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const updated = { ...prev };
             if (driverId) updated[driverId] = calculatedNewBal;
             if (driverPhone) updated[driverPhone] = calculatedNewBal;
+            if (currentUser?.id) updated[currentUser.id] = calculatedNewBal;
+            if (currentUser?.phone) updated[currentUser.phone] = calculatedNewBal;
             try { localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(updated)); } catch (_e) {}
             return updated;
           });
@@ -3930,6 +3923,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const targetPassengerId = completedRideObj.passengerId || currentUser?.id || 'passenger_default';
     const targetDriverId = completedRideObj.assignedDriverId || currentUser?.id || 'drv_01';
+    const targetDriverPhone = completedRideObj.driverPhone || (currentUser?.role === 'driver' ? currentUser.phone : '');
 
     // Deduct from specific passenger wallet if wallet payment
     if (completedRideObj.paymentMethod === 'wallet') {
@@ -3947,9 +3941,31 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     let newDriverBalance = 0;
     setDriverWallets((prev) => {
-      const cur = prev[targetDriverId] !== undefined ? prev[targetDriverId] : (getDriverWalletBalance(targetDriverId) || 0);
+      const cur = (targetDriverId && prev[targetDriverId] !== undefined)
+        ? prev[targetDriverId]
+        : (targetDriverPhone && prev[targetDriverPhone] !== undefined)
+        ? prev[targetDriverPhone]
+        : (getDriverWalletBalance(targetDriverId) || getDriverWalletBalance(targetDriverPhone) || 0);
+
       newDriverBalance = Math.max(0, Math.round((cur - commissionUsd) * 100) / 100);
-      const updated = { ...prev, [targetDriverId]: newDriverBalance };
+      const updated = { ...prev };
+
+      // Synchronize all keys corresponding to this driver so final balance is always updated
+      if (targetDriverId) updated[targetDriverId] = newDriverBalance;
+      if (targetDriverPhone) updated[targetDriverPhone] = newDriverBalance;
+      if (currentUser?.id) updated[currentUser.id] = newDriverBalance;
+      if (currentUser?.phone) updated[currentUser.phone] = newDriverBalance;
+
+      const matchedDriver = drivers.find((d) =>
+        d.id === targetDriverId ||
+        (targetDriverPhone && d.phone === targetDriverPhone) ||
+        (currentUser?.phone && d.phone === currentUser.phone)
+      );
+      if (matchedDriver) {
+        if (matchedDriver.id) updated[matchedDriver.id] = newDriverBalance;
+        if (matchedDriver.phone) updated[matchedDriver.phone] = newDriverBalance;
+      }
+
       try { localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(updated)); } catch (_e) {}
       return updated;
     });
@@ -3983,17 +3999,23 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const minThresholdUsd = pricing.driverMinWalletThresholdUsd || 0.10;
 
-    // Add collected fare to driver earnings & deduct commission from balance
+    // Add collected fare to driver earnings & deduct commission from balance across matching drivers
     setDrivers((prev) =>
       prev.map((d) => {
-        if (d.id === targetDriverId) {
+        const isMatch =
+          d.id === targetDriverId ||
+          (targetDriverPhone && d.phone === targetDriverPhone) ||
+          (currentUser?.id && d.id === currentUser.id) ||
+          (currentUser?.phone && d.phone === currentUser.phone);
+
+        if (isMatch) {
           const currentBal = d.walletBalanceUsd !== undefined ? d.walletBalanceUsd : 0;
           const nextBal = Math.max(0, Math.round((currentBal - commissionUsd) * 100) / 100);
           return {
             ...d,
             walletBalanceUsd: nextBal,
-            todayEarnings: Math.round(d.todayEarnings + totalCollectedFare),
-            weeklyEarnings: Math.round(d.weeklyEarnings + totalCollectedFare),
+            todayEarnings: Math.round((d.todayEarnings + totalCollectedFare) * 100) / 100,
+            weeklyEarnings: Math.round((d.weeklyEarnings + totalCollectedFare) * 100) / 100,
             totalTrips: d.totalTrips + 1,
             status: nextBal < minThresholdUsd ? 'offline' : d.status,
           };
@@ -4415,7 +4437,8 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       cancelled: 'cancelled',
     };
 
-    const nextStatus = sequence[currentRide.status];
+    const normalizedStatus = (currentRide.status ? currentRide.status.toLowerCase() : 'accepted') as RideStatus;
+    const nextStatus = sequence[normalizedStatus] || sequence[currentRide.status] || 'completed';
 
     if (nextStatus === 'driver_arrived') {
       sounds.playIncomingPing();
@@ -4467,14 +4490,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
           ...prev,
         ]);
       }
-      setCurrentRide({
-        ...currentRide,
-        driverRating: rating,
-        tipAmount: tip,
-      });
-      setTimeout(() => {
-        setCurrentRide(null);
-      }, 1500);
+      resetRideState();
     }
   };
 
