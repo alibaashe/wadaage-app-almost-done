@@ -2865,23 +2865,42 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isBookingRideRef.current = false;
     }, 2000);
 
-    // If rider already has an active searching ride, cancel the previous one first to prevent duplicate ghost rides
-    if (currentRide) {
-      if (currentRide.status === 'searching') {
-        console.log(`[Auto-Clean] Cancelling previous searching ride ${currentRide.id} before booking new order.`);
-        const cancelledPrevious: RideRequest = {
-          ...currentRide,
-          status: 'cancelled',
-          cancellationReason: 'Superseded by new ride request',
-        };
-        saveRideToFirestore(cancelledPrevious);
-        syncRideToHostinger(cancelledPrevious);
-        broadcastRideEvent('RIDE_CANCELLED', cancelledPrevious);
-      } else if (['accepted', 'driver_arrived', 'in_progress'].includes(currentRide.status)) {
-        console.warn('Cannot book another ride while an active trip is already in progress.');
-        isBookingRideRef.current = false;
-        return;
-      }
+    // Strict Active Ride Guard Check: Prevent duplicate active orders per user
+    const currentUserId = currentUser?.id;
+    const currentUserPhoneDigits = currentUser?.phone ? currentUser.phone.replace(/\D/g, '') : '';
+
+    const existingActiveRide = allPlatformRides.find((r) => {
+      const isMyRide =
+        (currentUserId && r.passengerId === currentUserId) ||
+        (currentUserPhoneDigits && r.passengerPhone && r.passengerPhone.replace(/\D/g, '') === currentUserPhoneDigits) ||
+        (currentRide && currentRide.id === r.id);
+
+      const isActiveStatus = ['searching', 'accepted', 'driver_arrived', 'in_progress', 'pending', 'boarding'].includes(r.status);
+      return isMyRide && isActiveStatus;
+    });
+
+    if (existingActiveRide || (currentRide && ['accepted', 'driver_arrived', 'in_progress'].includes(currentRide.status))) {
+      const activeObj = existingActiveRide || currentRide;
+      console.warn(`[Active Ride Guard] Blocked duplicate order for user ${currentUserId}. Existing ride ID: ${activeObj?.id}`);
+      isBookingRideRef.current = false;
+      throw new Error(
+        language === 'so'
+          ? `Aadawade! Hada waxaad leedahay safar firfircoon (Safar #${activeObj?.id.slice(-6)}). Fadlan dhameey ama baaji safarkaagii hore ka hor inta aanad dalban meel cusub.`
+          : `You already have an active ride request (Ride #${activeObj?.id.slice(-6)}). Please complete or cancel your current trip before booking a new order.`
+      );
+    }
+
+    // Auto-clean previous searching ride if applicable
+    if (currentRide && currentRide.status === 'searching') {
+      console.log(`[Auto-Clean] Cancelling previous searching ride ${currentRide.id} before booking new order.`);
+      const cancelledPrevious: RideRequest = {
+        ...currentRide,
+        status: 'cancelled',
+        cancellationReason: 'Superseded by new ride request',
+      };
+      saveRideToFirestore(cancelledPrevious);
+      syncRideToHostinger(cancelledPrevious);
+      broadcastRideEvent('RIDE_CANCELLED', cancelledPrevious);
     }
 
     const paymentMethod = paymentMethodParam || 'cash';
@@ -3370,18 +3389,27 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const registerRider = (userData: { name: string; phone: string; email?: string }): AuthUser => {
     const cleanDigits = userData.phone.replace(/\D/g, '');
     const regUsers = secureStorage.getItem<AuthUser[]>('wadaage_registered_users', []) || [];
-    const existing = regUsers.find((u) => u.role === 'passenger' && u.phone && u.phone.replace(/\D/g, '') === cleanDigits);
 
-    const newUser: AuthUser = existing
-      ? { ...existing, name: userData.name.trim() || existing.name }
-      : {
-          id: `usr_${Date.now()}`,
-          name: userData.name.trim(),
-          email: userData.email || `${cleanDigits}@wadaage.com`,
-          phone: userData.phone,
-          role: 'passenger',
-          avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
-        };
+    // Strict Unique Phone Verification: Block duplicate registrations if phone is already taken
+    const existing = regUsers.find((u) => u.phone && u.phone.replace(/\D/g, '') === cleanDigits);
+
+    if (existing) {
+      console.warn(`[Registration Guard] Duplicate phone registration attempt for +${cleanDigits}`);
+      throw new Error(
+        language === 'so'
+          ? `Lambarkan Telefoonka (+${cleanDigits}) hore ayaa loo diiwaangeliyay. Fadlan "Sogal / Log In" ama isticmaal lambar kale.`
+          : `This phone number (+${cleanDigits}) is already registered. Please log in instead.`
+      );
+    }
+
+    const newUser: AuthUser = {
+      id: `usr_${Date.now()}`,
+      name: userData.name.trim(),
+      email: userData.email || `${cleanDigits}@wadaage.com`,
+      phone: userData.phone,
+      role: 'passenger',
+      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+    };
 
     // Purge previous session ride states and start completely fresh
     setCurrentRide(null);
@@ -3461,6 +3489,20 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
     autoApprove?: boolean;
   }): { driver: Driver; user: AuthUser; application: DriverApplication } => {
     const cleanPhone = driverData.phone.replace(/\D/g, '');
+
+    // Strict Unique Phone Verification for Drivers
+    const existingDriver = drivers.find((d) => d.phone && d.phone.replace(/\D/g, '') === cleanPhone);
+    const existingApp = driverApplications.find((a) => a.phone && a.phone.replace(/\D/g, '') === cleanPhone);
+
+    if (existingDriver || existingApp) {
+      console.warn(`[Driver Registration Guard] Duplicate driver phone registration attempt for +${cleanPhone}`);
+      throw new Error(
+        language === 'so'
+          ? `Lambarkan Telefoonka (+${cleanPhone}) hore ayaa loogu diiwaangeliyay darawal ahaan. Fadlan "Sogal / Log In" ama la xiriir maamulka.`
+          : `This phone number (+${cleanPhone}) is already registered as a driver. Please log in instead.`
+      );
+    }
+
     const isAutoApproved = !!driverData.autoApprove;
     const driverPassword = driverData.password?.trim() || 'WadaageDriver123!';
 
