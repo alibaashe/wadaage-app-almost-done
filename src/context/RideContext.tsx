@@ -435,11 +435,15 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Drivers and Driver Applications initialized with verified records by default
   const [drivers, setDrivers] = useState<Driver[]>(() => {
     try {
+      const deletedPhones: string[] = safeJsonParse(localStorage.getItem('wadaage_deleted_driver_phones'), []);
       const saved = localStorage.getItem('wadaage_registered_drivers');
       if (saved) {
         const parsed = safeJsonParse(saved, null);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((d) => !deletedPhones.includes(d.id) && !(d.phone && deletedPhones.includes(d.phone.replace(/\D/g, ''))));
+        }
       }
+      return INITIAL_DRIVERS.filter((d) => !deletedPhones.includes(d.id) && !(d.phone && deletedPhones.includes(d.phone.replace(/\D/g, ''))));
     } catch (e) {
       console.error(e);
     }
@@ -456,11 +460,15 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const [driverApplications, setDriverApplications] = useState<DriverApplication[]>(() => {
     try {
+      const deletedPhones: string[] = safeJsonParse(localStorage.getItem('wadaage_deleted_driver_phones'), []);
       const saved = localStorage.getItem('wadaage_driver_applications');
       if (saved) {
         const parsed = safeJsonParse(saved, null);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.filter((a) => !deletedPhones.includes(a.id) && !(a.phone && deletedPhones.includes(a.phone.replace(/\D/g, ''))));
+        }
       }
+      return INITIAL_DRIVER_APPLICATIONS.filter((a) => !deletedPhones.includes(a.id) && !(a.phone && deletedPhones.includes(a.phone.replace(/\D/g, ''))));
     } catch (e) {
       console.error(e);
     }
@@ -4832,12 +4840,57 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const deleteDriverApplication = (appId: string) => {
-    setDriverApplications((prev) => prev.filter((app) => app.id !== appId));
+    const targetApp = driverApplications.find((app) => app.id === appId);
+    const targetPhone = targetApp?.phone;
+    const targetCleanPhone = targetPhone ? targetPhone.replace(/\D/g, '') : '';
+
+    // 1. Remove from driver applications state
+    setDriverApplications((prev) => prev.filter((app) => app.id !== appId && (targetCleanPhone ? app.phone.replace(/\D/g, '') !== targetCleanPhone : true)));
+
+    // 2. Remove matching driver from drivers list if present
+    setDrivers((prev) =>
+      prev.filter((d) => d.id !== appId && (targetCleanPhone ? d.phone.replace(/\D/g, '') !== targetCleanPhone : true))
+    );
+
+    // 3. Persist deletion in local storage so page refreshes do not restore deleted drivers/apps
+    try {
+      const savedAppsStr = localStorage.getItem('wadaage_driver_applications');
+      if (savedAppsStr) {
+        const savedApps: DriverApplication[] = safeJsonParse(savedAppsStr, []);
+        const filteredApps = savedApps.filter(
+          (a) => a.id !== appId && (targetCleanPhone ? a.phone.replace(/\D/g, '') !== targetCleanPhone : true)
+        );
+        localStorage.setItem('wadaage_driver_applications', JSON.stringify(filteredApps));
+      }
+
+      const savedDriversStr = localStorage.getItem('wadaage_registered_drivers');
+      if (savedDriversStr) {
+        const savedDrivers: Driver[] = safeJsonParse(savedDriversStr, []);
+        const filteredDrivers = savedDrivers.filter(
+          (d) => d.id !== appId && (targetCleanPhone ? d.phone.replace(/\D/g, '') !== targetCleanPhone : true)
+        );
+        localStorage.setItem('wadaage_registered_drivers', JSON.stringify(filteredDrivers));
+      }
+
+      // Record deleted phone numbers in blacklisted deleted set
+      const deletedPhones = safeJsonParse(localStorage.getItem('wadaage_deleted_driver_phones'), []);
+      if (targetCleanPhone && !deletedPhones.includes(targetCleanPhone)) {
+        deletedPhones.push(targetCleanPhone);
+        localStorage.setItem('wadaage_deleted_driver_phones', JSON.stringify(deletedPhones));
+      }
+    } catch (_e) {}
+
+    // 4. Remote deletion from Firestore & MySQL Database
     deleteApplicationFromFirestore(appId);
     try {
       fetch(getApiUrl(`/api/driver-applications/${appId}`), {
         method: 'DELETE',
       }).catch(() => {});
+      if (targetCleanPhone) {
+        fetch(getApiUrl(`/api/db/drivers/${targetCleanPhone}`), {
+          method: 'DELETE',
+        }).catch(() => {});
+      }
     } catch (_e) {}
   };
 
