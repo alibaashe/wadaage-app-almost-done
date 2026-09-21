@@ -181,7 +181,7 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
               title="Prepaid Commission Wallet"
             >
               <Wallet className="w-4 h-4" />
-              <span>${driverWalletBalanceUsd.toFixed(2)}</span>
+              <span>{Math.round(driverWalletBalanceUsd * EXCHANGE_RATE_USD_TO_SLSH).toLocaleString()} SLSH</span>
             </button>
 
             {/* Driver Avatar + Rating Star */}

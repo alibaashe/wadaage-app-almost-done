@@ -2551,17 +2551,17 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const finalUsd = Math.round((finalSos / 10000) * 100) / 100;
           const targetDriverId = tx.driverId || 'drv_01';
 
-          let calculatedNewBal = 0;
+          // Synchronously calculate current balance from source of truth before dispatching React setters
+          const currentBal = (targetDriverId && driverWallets[targetDriverId] !== undefined)
+            ? Number(driverWallets[targetDriverId])
+            : (tx.driverPhone && driverWallets[tx.driverPhone] !== undefined)
+            ? Number(driverWallets[tx.driverPhone])
+            : (getDriverWalletBalance(targetDriverId) || 0);
+
+          const calculatedNewBal = Math.max(0, Math.round((currentBal + finalUsd) * 100) / 100);
 
           // 1. Credit ONLY this specific driver in driverWallets map
           setDriverWallets((w) => {
-            const currentBal = (targetDriverId && w[targetDriverId] !== undefined)
-              ? Number(w[targetDriverId])
-              : (tx.driverPhone && w[tx.driverPhone] !== undefined)
-              ? Number(w[tx.driverPhone])
-              : (getDriverWalletBalance(targetDriverId) || 0);
-
-            calculatedNewBal = Math.max(0, Math.round((currentBal + finalUsd) * 100) / 100);
             const updated = { ...w };
             if (targetDriverId) updated[targetDriverId] = calculatedNewBal;
             if (tx.driverPhone) updated[tx.driverPhone] = calculatedNewBal;

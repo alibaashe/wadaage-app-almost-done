@@ -191,7 +191,9 @@ export const Header: React.FC<HeaderProps> = ({ onBackToWebsite, onNavigate }) =
                 </div>
                 <div className="text-left hidden sm:block">
                   <div className="font-bold text-emerald-400 leading-tight">
-                    {formatCurrency(role === 'driver' ? driverWalletBalanceUsd : walletBalance)}
+                    {role === 'driver'
+                      ? `${Math.round(driverWalletBalanceUsd * 10000).toLocaleString()} SLSH`
+                      : formatCurrency(walletBalance)}
                   </div>
                 </div>
               </button>

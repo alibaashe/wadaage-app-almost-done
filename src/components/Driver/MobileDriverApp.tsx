@@ -2154,7 +2154,7 @@ export const MobileDriverApp: React.FC = () => {
                     <Wallet className="w-4 h-4 text-amber-400" />
                     <span>ZAAD / eDahab Commission Wallet</span>
                   </div>
-                  <span className="font-mono text-xs text-emerald-400">${driverWalletBalanceUsd.toFixed(2)}</span>
+                  <span className="font-mono text-xs text-emerald-400">{Math.round(driverWalletBalanceUsd * EXCHANGE_RATE_USD_TO_SLSH).toLocaleString()} SLSH</span>
                 </button>
 
                 <button
