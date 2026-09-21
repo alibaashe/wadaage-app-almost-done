@@ -2547,17 +2547,30 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDriverWalletTransactions((prev) =>
       prev.map((tx) => {
         if (tx.id === txId) {
-          const finalSos = realAmountSosInput && realAmountSosInput > 0 ? realAmountSosInput : tx.amountSos;
+          const finalSos = realAmountSosInput && realAmountSosInput > 0 ? Number(realAmountSosInput) : Number(tx.amountSos);
           const finalUsd = Math.round((finalSos / 10000) * 100) / 100;
           const targetDriverId = tx.driverId || 'drv_01';
 
+          let calculatedNewBal = 0;
+
           // 1. Credit ONLY this specific driver in driverWallets map
           setDriverWallets((w) => {
-            const currentBal = w[targetDriverId] !== undefined ? w[targetDriverId] : (getDriverWalletBalance(targetDriverId) || 0);
-            const newBal = Math.max(0, Math.round((currentBal + finalUsd) * 100) / 100);
-            const updated = { ...w, [targetDriverId]: newBal };
+            const currentBal = (targetDriverId && w[targetDriverId] !== undefined)
+              ? Number(w[targetDriverId])
+              : (tx.driverPhone && w[tx.driverPhone] !== undefined)
+              ? Number(w[tx.driverPhone])
+              : (getDriverWalletBalance(targetDriverId) || 0);
+
+            calculatedNewBal = Math.max(0, Math.round((currentBal + finalUsd) * 100) / 100);
+            const updated = { ...w };
+            if (targetDriverId) updated[targetDriverId] = calculatedNewBal;
+            if (tx.driverPhone) updated[tx.driverPhone] = calculatedNewBal;
+            if (currentUser?.id) updated[currentUser.id] = calculatedNewBal;
+            if (currentUser?.phone) updated[currentUser.phone] = calculatedNewBal;
+
             try {
               localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(updated));
+              localStorage.setItem('wadaage_driver_wallet_balance', JSON.stringify(calculatedNewBal));
             } catch (e) {
               console.error(e);
             }
@@ -2568,13 +2581,11 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const minThresholdUsd = pricing.driverMinWalletThresholdUsd || 0.10;
           setDrivers((drvs) =>
             drvs.map((d) => {
-              if (d.id === targetDriverId || d.phone === tx.driverPhone) {
-                const currentBal = d.walletBalanceUsd !== undefined ? d.walletBalanceUsd : 0;
-                const newBal = Math.max(0, Math.round((currentBal + finalUsd) * 100) / 100);
+              if (d.id === targetDriverId || (tx.driverPhone && d.phone === tx.driverPhone)) {
                 return {
                   ...d,
-                  walletBalanceUsd: newBal,
-                  status: newBal >= minThresholdUsd ? 'available' : d.status,
+                  walletBalanceUsd: calculatedNewBal,
+                  status: calculatedNewBal >= minThresholdUsd ? 'available' : d.status,
                 };
               }
               return d;
@@ -4009,15 +4020,13 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
           (currentUser?.phone && d.phone === currentUser.phone);
 
         if (isMatch) {
-          const currentBal = d.walletBalanceUsd !== undefined ? d.walletBalanceUsd : 0;
-          const nextBal = Math.max(0, Math.round((currentBal - commissionUsd) * 100) / 100);
           return {
             ...d,
-            walletBalanceUsd: nextBal,
+            walletBalanceUsd: newDriverBalance,
             todayEarnings: Math.round((d.todayEarnings + totalCollectedFare) * 100) / 100,
             weeklyEarnings: Math.round((d.weeklyEarnings + totalCollectedFare) * 100) / 100,
             totalTrips: d.totalTrips + 1,
-            status: nextBal < minThresholdUsd ? 'offline' : d.status,
+            status: newDriverBalance < minThresholdUsd ? 'offline' : d.status,
           };
         }
         return d;
