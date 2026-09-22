@@ -58,6 +58,7 @@ import { UnifiedMap } from '../Map/UnifiedMap';
 import { LocationPermissionPrompt } from '../Common/LocationPermissionPrompt';
 import { BottomSheet } from '../Common/BottomSheet';
 import { SlideToAccept } from './SlideToAccept';
+import { WadaageDriverWalletModal } from './WadaageDriverWalletModal';
 import { DriverEmergencySosModal } from './DriverEmergencySosModal';
 import { DriverActivityView } from './DriverActivityView';
 import { DriverAccountView } from './DriverAccountView';
@@ -105,7 +106,10 @@ export const MobileDriverApp: React.FC = () => {
     recalibrateDriverGps,
     toggleDriverLiveGps,
     allPlatformRides,
+    getDriverSlshBalance,
   } = useRide();
+
+  const driverSlshBal = getDriverSlshBalance ? getDriverSlshBalance(currentUser?.id || currentUser?.phone || 'drv_01') : 120000;
 
   // Bottom Navigation Active Tab: 'home' | 'my_rides' | 'fuel' | 'profile' | 'active_ride' | 'settings'
   const [activeTab, setActiveTab] = useState<'home' | 'my_rides' | 'fuel' | 'profile' | 'active_ride' | 'settings'>('home');
@@ -124,6 +128,7 @@ export const MobileDriverApp: React.FC = () => {
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showVehicleSetupModal, setShowVehicleSetupModal] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showNotificationDrawer, setShowNotificationDrawer] = useState(false);
@@ -253,15 +258,34 @@ export const MobileDriverApp: React.FC = () => {
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowNotificationDrawer(true)}
-                className="relative w-10 h-10 rounded-2xl bg-white/95 text-slate-800 shadow-md border border-slate-200/80 flex items-center justify-center hover:bg-white active:scale-95 transition cursor-pointer"
-                title="Driver Notifications"
-              >
-                <Bell className="w-5 h-5 text-slate-800" />
-                <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
-              </button>
+              <div className="flex items-center space-x-1.5">
+                <button
+                  type="button"
+                  onClick={() => setShowWalletModal(true)}
+                  className="px-2.5 py-1.5 rounded-2xl bg-emerald-950/90 text-emerald-300 shadow-md border border-emerald-500/40 flex items-center space-x-1.5 hover:bg-emerald-900 active:scale-95 transition cursor-pointer"
+                  title="Wadaage Driver Balance"
+                >
+                  <Wallet className="w-4 h-4 text-emerald-400" />
+                  <div className="text-left">
+                    <span className="text-[10px] font-black font-mono block leading-none">
+                      {driverSlshBal.toLocaleString()} SLSH
+                    </span>
+                    <span className="text-[8px] text-emerald-400/80 font-mono block leading-none">
+                      (${(driverSlshBal / 10000).toFixed(2)})
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowNotificationDrawer(true)}
+                  className="relative w-10 h-10 rounded-2xl bg-white/95 text-slate-800 shadow-md border border-slate-200/80 flex items-center justify-center hover:bg-white active:scale-95 transition cursor-pointer"
+                  title="Driver Notifications"
+                >
+                  <Bell className="w-5 h-5 text-slate-800" />
+                  <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+                </button>
+              </div>
             </div>
 
             {/* Two Status & Earnings Cards (exact replica of image.png) */}
@@ -2088,6 +2112,22 @@ export const MobileDriverApp: React.FC = () => {
                 <button
                   onClick={() => {
                     setShowMenuDrawer(false);
+                    setShowWalletModal(true);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 transition"
+                >
+                  <div className="flex items-center space-x-2.5">
+                    <Wallet className="w-4 h-4 text-emerald-400" />
+                    <span>Prepaid SLSH Wallet</span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-700/60">
+                    {driverSlshBal.toLocaleString()} SLSH
+                  </span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setShowMenuDrawer(false);
                     setShowActivityModal(true);
                   }}
                   className="w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 transition"
@@ -2182,6 +2222,10 @@ export const MobileDriverApp: React.FC = () => {
       )}
 
       {/* 9. MODALS & SUB-VIEWS (Wallet, KYC, SOS, Earnings, Activity) */}
+      <WadaageDriverWalletModal
+        isOpen={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+      />
       <LocationSetupModal
         isOpen={showLocationModal}
         onClose={() => setShowLocationModal(false)}
