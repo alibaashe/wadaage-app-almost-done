@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Power,
   Shield,
-  Wallet,
   TrendingUp,
   Clock,
   Car,
@@ -27,7 +26,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useRide } from '../../context/RideContext';
 import { UnifiedMap } from '../Map/UnifiedMap';
 import { formatCurrency, EXCHANGE_RATE_USD_TO_SLSH } from '../../utils/geo';
-import { DriverCommissionWalletModal } from './DriverCommissionWalletModal';
 import { DriverEmergencySosModal } from './DriverEmergencySosModal';
 import { DriverHotspotsModal } from './DriverHotspotsModal';
 import { ServiceTypesModal } from './ServiceTypesModal';
@@ -57,13 +55,11 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
     currentRide,
     advanceDriverRideState,
     drivers,
-    driverWalletBalanceUsd,
     pricing,
     currentUser,
   } = useRide();
 
   // Modals & Sheets
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const [showSosModal, setShowSosModal] = useState(false);
   const [showHotspotsModal, setShowHotspotsModal] = useState(false);
   const [showServiceTypesModal, setShowServiceTypesModal] = useState(false);
@@ -116,10 +112,7 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
   }, [incomingDriverRequest, declineRideByDriver]);
 
   const handleToggle = () => {
-    const success = toggleDriverOnline(!driverModeOnline);
-    if (!success) {
-      setShowWalletModal(true);
-    }
+    toggleDriverOnline(!driverModeOnline);
   };
 
   return (
@@ -172,16 +165,6 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
               title="Safety SOS"
             >
               <Shield className="w-5 h-5 stroke-[2.2]" />
-            </button>
-
-            {/* Wallet Quick Balance Pill */}
-            <button
-              onClick={() => setShowWalletModal(true)}
-              className="hidden sm:flex items-center space-x-1.5 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-2xl border border-emerald-500/20 text-xs font-black transition active:scale-95 shadow-xs"
-              title="Prepaid Commission Wallet"
-            >
-              <Wallet className="w-4 h-4" />
-              <span>{Math.round(driverWalletBalanceUsd * EXCHANGE_RATE_USD_TO_SLSH).toLocaleString()} SLSH</span>
             </button>
 
             {/* Driver Avatar + Rating Star */}
@@ -475,10 +458,6 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
       </div>
 
       {/* 6. MODALS & DRAWERS */}
-      <DriverCommissionWalletModal
-        isOpen={showWalletModal}
-        onClose={() => setShowWalletModal(false)}
-      />
       <DriverEmergencySosModal
         isOpen={showSosModal}
         onClose={() => setShowSosModal(false)}

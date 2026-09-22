@@ -7,7 +7,6 @@ import { UnifiedMap } from '../Map/UnifiedMap';
 import { BroadcastManager } from './BroadcastManager';
 import { CouponManager } from './CouponManager';
 import { DriverApprovalTable } from './DriverApprovalTable';
-import { DriverTopUpControlTable } from './DriverTopUpControlTable';
 import { PaymentGatewaysConfig } from './PaymentGatewaysConfig';
 import { PricingSurgeControl } from './PricingSurgeControl';
 import { RolePermissionManager } from './RolePermissionManager';
@@ -28,13 +27,11 @@ import { WhatsAppOtpControlPanel } from './WhatsAppOtpControlPanel';
 import { SecurityEncryptionCenter } from './SecurityEncryptionCenter';
 
 export const AdminDashboard: React.FC = () => {
-  const { drivers, currentRide, pricing, dispatchDriverToRide, driverWalletTransactions } = useRide();
+  const { drivers, currentRide, pricing, dispatchDriverToRide } = useRide();
   const [activeTab, setActiveTab] = useState<
-    'dispatch' | 'flow_matching' | 'pricing' | 'approval' | 'topup' | 'users' | 'broadcast' | 'coupons' | 'roles' | 'payments' | 'whatsapp' | 'security' | 'hostinger' | 'database' | 'playstore'
+    'dispatch' | 'flow_matching' | 'pricing' | 'approval' | 'users' | 'broadcast' | 'coupons' | 'roles' | 'payments' | 'whatsapp' | 'security' | 'hostinger' | 'database' | 'playstore'
   >('dispatch');
   const [showSurgeHeatmap, setShowSurgeHeatmap] = useState(true);
-
-  const pendingTopUpCount = driverWalletTransactions.filter((tx) => tx.status === 'pending_verification').length;
 
   // Modals for sophisticated features
   const [showGodsEyeModal, setShowGodsEyeModal] = useState(false);
@@ -270,22 +267,6 @@ export const AdminDashboard: React.FC = () => {
           <span>Driver Approvals</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab('topup')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shrink-0 relative ${
-            activeTab === 'topup'
-              ? 'bg-emerald-500 text-slate-950 shadow-md'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <Wallet className="w-4 h-4" />
-          <span>Driver Top-Ups</span>
-          {pendingTopUpCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-slate-950 font-black text-[10px] rounded-full animate-pulse">
-              {pendingTopUpCount}
-            </span>
-          )}
-        </button>
 
         <button
           onClick={() => setActiveTab('users')}
@@ -527,7 +508,6 @@ export const AdminDashboard: React.FC = () => {
       {activeTab === 'broadcast' && <BroadcastManager />}
       {activeTab === 'coupons' && <CouponManager />}
       {activeTab === 'approval' && <DriverApprovalTable />}
-      {activeTab === 'topup' && <DriverTopUpControlTable />}
       {activeTab === 'users' && <UserManagementTable />}
       {activeTab === 'roles' && <RolePermissionManager />}
       {activeTab === 'payments' && <PaymentGatewaysConfig />}

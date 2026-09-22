@@ -10,7 +10,6 @@ import { PromosModal } from './Passenger/PromosModal';
 import { SafetyCenterModal } from './Passenger/SafetyCenterModal';
 import { TripHistoryModal } from './Passenger/TripHistoryModal';
 import { WalletModal } from './Passenger/WalletModal';
-import { DriverCommissionWalletModal } from './Driver/DriverCommissionWalletModal';
 import { AppInfoWalletModal } from './Common/AppInfoWalletModal';
 import { PlayStorePublishingModal } from './Admin/PlayStorePublishingModal';
 import { SomalilandFlag } from './Common/SomalilandFlag';
@@ -22,9 +21,8 @@ export interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onBackToWebsite, onNavigate }) => {
-  const { role, setRole, walletBalance, driverWalletBalanceUsd, soundEnabled, setSoundEnabled, currentUser, logout, language, setLanguage, t } = useRide();
+  const { role, setRole, walletBalance, soundEnabled, setSoundEnabled, currentUser, logout, language, setLanguage, t } = useRide();
   const [showWalletModal, setShowWalletModal] = useState(false);
-  const [showDriverCommissionModal, setShowDriverCommissionModal] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -173,27 +171,19 @@ export const Header: React.FC<HeaderProps> = ({ onBackToWebsite, onNavigate }) =
               <span className="hidden xl:inline">Play Store</span>
             </button>
 
-            {/* Wallet Quick Balance Button - Only for Driver & Admin (Not for Rider) */}
-            {role !== 'passenger' && (
+            {/* Wallet Quick Balance Button - Only for Admin (Not for Rider) */}
+            {role === 'admin' && (
               <button
-                onClick={() => {
-                  if (role === 'driver') {
-                    setShowDriverCommissionModal(true);
-                  } else {
-                    setShowWalletModal(true);
-                  }
-                }}
+                onClick={() => setShowWalletModal(true)}
                 className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 text-slate-200 transition-all active:scale-95"
-                title={role === 'driver' ? 'Open Driver Commission Wallet' : 'Open Wallet & Top-Up'}
+                title="Open Wallet & Top-Up"
               >
                 <div className="w-5 h-5 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                   <CreditCard className="w-3.5 h-3.5" />
                 </div>
                 <div className="text-left hidden sm:block">
                   <div className="font-bold text-emerald-400 leading-tight">
-                    {role === 'driver'
-                      ? `${Math.round(driverWalletBalanceUsd * 10000).toLocaleString()} SLSH`
-                      : formatCurrency(walletBalance)}
+                    {formatCurrency(walletBalance)}
                   </div>
                 </div>
               </button>
@@ -255,12 +245,6 @@ export const Header: React.FC<HeaderProps> = ({ onBackToWebsite, onNavigate }) =
       </header>
 
       {/* Modals */}
-      {showDriverCommissionModal && (
-        <DriverCommissionWalletModal
-          isOpen={showDriverCommissionModal}
-          onClose={() => setShowDriverCommissionModal(false)}
-        />
-      )}
       {showWalletModal && <WalletModal onClose={() => setShowWalletModal(false)} />}
       {showSafetyModal && <SafetyCenterModal onClose={() => setShowSafetyModal(false)} />}
       {showAnnouncements && <AnnouncementsModal onClose={() => setShowAnnouncements(false)} />}

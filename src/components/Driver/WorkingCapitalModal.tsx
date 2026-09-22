@@ -8,7 +8,6 @@ interface WorkingCapitalModalProps {
 }
 
 export const WorkingCapitalModal: React.FC<WorkingCapitalModalProps> = ({ isOpen, onClose }) => {
-  const { driverWalletBalanceUsd } = useRide();
   const [cashoutSuccess, setCashoutSuccess] = useState(false);
 
   if (!isOpen) return null;
@@ -75,17 +74,6 @@ export const WorkingCapitalModal: React.FC<WorkingCapitalModalProps> = ({ isOpen
                 </span>
               </div>
 
-              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700/80 flex items-center justify-between">
-                <div>
-                  <span className="text-xs text-slate-500 font-medium block">Credit Wallet Balance</span>
-                  <span className="text-lg font-black text-emerald-400 font-mono">
-                    ${driverWalletBalanceUsd.toFixed(2)}
-                  </span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-mono">
-                  {(driverWalletBalanceUsd * 10000).toLocaleString()} SOS
-                </span>
-              </div>
             </div>
 
             {/* Instant Daily Cash Out Action */}

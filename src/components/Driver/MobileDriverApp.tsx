@@ -58,9 +58,7 @@ import { UnifiedMap } from '../Map/UnifiedMap';
 import { LocationPermissionPrompt } from '../Common/LocationPermissionPrompt';
 import { BottomSheet } from '../Common/BottomSheet';
 import { SlideToAccept } from './SlideToAccept';
-import { DriverCommissionWalletModal } from './DriverCommissionWalletModal';
 import { DriverEmergencySosModal } from './DriverEmergencySosModal';
-import { DriverEarningsView } from './DriverEarningsView';
 import { DriverActivityView } from './DriverActivityView';
 import { DriverAccountView } from './DriverAccountView';
 import { DriverRegistrationModal } from './DriverRegistrationModal';
@@ -88,7 +86,6 @@ export const MobileDriverApp: React.FC = () => {
     toggleDropoffPriority,
     cancelIndividualRider,
     orderSecondRiderForWadaageShare,
-    driverWalletBalanceUsd,
     soundEnabled,
     setSoundEnabled,
     currentUser,
@@ -110,8 +107,8 @@ export const MobileDriverApp: React.FC = () => {
     allPlatformRides,
   } = useRide();
 
-  // Bottom Navigation Active Tab: 'home' | 'my_rides' | 'fuel' | 'earnings' | 'profile' | 'active_ride' | 'settings'
-  const [activeTab, setActiveTab] = useState<'home' | 'my_rides' | 'fuel' | 'earnings' | 'profile' | 'active_ride' | 'settings'>('home');
+  // Bottom Navigation Active Tab: 'home' | 'my_rides' | 'fuel' | 'profile' | 'active_ride' | 'settings'
+  const [activeTab, setActiveTab] = useState<'home' | 'my_rides' | 'fuel' | 'profile' | 'active_ride' | 'settings'>('home');
   const [viewMapOverlay, setViewMapOverlay] = useState(false);
   const [cleanMapNavMode, setCleanMapNavMode] = useState(false);
   const [isFullMapMode, setIsFullMapMode] = useState(true);
@@ -122,10 +119,8 @@ export const MobileDriverApp: React.FC = () => {
   const [dismissKycBanner, setDismissKycBanner] = useState(false);
 
   const [requestTimer, setRequestTimer] = useState(60);
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const [showSosModal, setShowSosModal] = useState(false);
   const [showChatModal, setShowChatModal] = useState(false);
-  const [showEarningsModal, setShowEarningsModal] = useState(false);
   const [showActivityModal, setShowActivityModal] = useState(false);
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showVehicleSetupModal, setShowVehicleSetupModal] = useState(false);
@@ -299,21 +294,21 @@ export const MobileDriverApp: React.FC = () => {
                 </div>
               </button>
 
-              {/* Right Card: Today's Earnings in SLSH */}
+              {/* Right Card: Today's Rides Count */}
               <button
                 type="button"
-                onClick={() => setActiveTab('earnings')}
+                onClick={() => setActiveTab('my_rides')}
                 className="bg-white/95 backdrop-blur-md rounded-2xl p-2.5 sm:p-3 shadow-md border border-slate-200/80 flex items-center space-x-2.5 text-left active:scale-[0.98] transition hover:bg-white cursor-pointer"
               >
                 <div className="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-                  <Wallet className="w-4 h-4" />
+                  <Car className="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <span className="text-xs font-black text-slate-900 font-mono block truncate">
-                    SLSH {todayEarningsSlsh.toLocaleString()}
+                    {completedCount} Trips
                   </span>
                   <span className="text-[10px] text-slate-500 font-medium block truncate">
-                    Today's Earnings
+                    Shift Activity
                   </span>
                 </div>
               </button>
@@ -1925,46 +1920,6 @@ export const MobileDriverApp: React.FC = () => {
         </div>
       )}
 
-      {/* 4. EARNINGS TAB */}
-      {activeTab === 'earnings' && (
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-black text-slate-900">Dakhliga (Earnings)</h2>
-            <button
-              type="button"
-              onClick={() => setActiveTab('home')}
-              className="text-xs text-[#008751] font-bold"
-            >
-              Back to Map
-            </button>
-          </div>
-          <div className="bg-gradient-to-br from-[#008751] to-emerald-700 rounded-3xl p-5 text-white shadow-lg space-y-3">
-            <div className="text-xs uppercase font-bold tracking-wider text-emerald-100">Maanta (Today's Earnings)</div>
-            <div className="text-3xl font-black font-mono">
-              ${(currentDriverRecord?.todayEarnings || 0).toFixed(2)}
-            </div>
-            <div className="text-sm font-bold text-emerald-200">
-              ~{Math.round((currentDriverRecord?.todayEarnings || 0) * EXCHANGE_RATE_USD_TO_SLSH).toLocaleString()} SLSH
-            </div>
-            <div className="pt-2 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowWalletModal(true)}
-                className="flex-1 py-2 px-3 bg-white text-[#008751] font-black rounded-xl text-xs uppercase tracking-wider shadow"
-              >
-                Zaad / eDahab Wallet
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowEarningsModal(true)}
-                className="py-2 px-3 bg-emerald-800/80 text-white font-bold rounded-xl text-xs"
-              >
-                Faahfaahin
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 5. PROFILE TAB */}
       {activeTab === 'profile' && (
@@ -2076,20 +2031,6 @@ export const MobileDriverApp: React.FC = () => {
           <span className="text-[11px] tracking-wider uppercase">FUEL</span>
         </button>
 
-        {/* Tab 4: EARNINGS */}
-        <button
-          id="nav-tab-earnings"
-          type="button"
-          onClick={() => setActiveTab('earnings')}
-          className={`min-h-[44px] px-3 py-1.5 rounded-full flex items-center space-x-1.5 transition-all duration-200 active:scale-95 cursor-pointer ${
-            activeTab === 'earnings'
-              ? 'bg-white text-[#0066f5] font-black shadow-md'
-              : 'text-white/80 hover:text-white font-bold'
-          }`}
-        >
-          <Wallet className="w-4 h-4 shrink-0" />
-          <span className="text-[11px] tracking-wider uppercase">EARNINGS</span>
-        </button>
 
         {/* Tab 5: PROFILE */}
         <button
@@ -2143,30 +2084,6 @@ export const MobileDriverApp: React.FC = () => {
 
               {/* Navigation Links */}
               <div className="space-y-1 text-sm font-semibold">
-                <button
-                  onClick={() => {
-                    setShowMenuDrawer(false);
-                    setShowWalletModal(true);
-                  }}
-                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 transition"
-                >
-                  <div className="flex items-center space-x-2.5">
-                    <Wallet className="w-4 h-4 text-amber-400" />
-                    <span>ZAAD / eDahab Commission Wallet</span>
-                  </div>
-                  <span className="font-mono text-xs text-emerald-400">{Math.round(driverWalletBalanceUsd * EXCHANGE_RATE_USD_TO_SLSH).toLocaleString()} SLSH</span>
-                </button>
-
-                <button
-                  onClick={() => {
-                    setShowMenuDrawer(false);
-                    setShowEarningsModal(true);
-                  }}
-                  className="w-full flex items-center space-x-2.5 px-3 py-2.5 rounded-xl hover:bg-slate-800 text-slate-200 transition"
-                >
-                  <Sparkles className="w-4 h-4 text-emerald-400" />
-                  <span>Daily Earnings Breakdown</span>
-                </button>
 
                 <button
                   onClick={() => {
@@ -2254,10 +2171,6 @@ export const MobileDriverApp: React.FC = () => {
               </div>
 
               <div className="space-y-2.5 text-xs">
-                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-1">
-                  <p className="font-bold text-emerald-900">Wallet Top-up Confirmed</p>
-                  <p className="text-slate-600">Your ZAAD topup of 10,000 SLSH ($1.00) is credited to your commission account.</p>
-                </div>
                 <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl space-y-1">
                   <p className="font-bold text-slate-900">High Demand in Jigjiga Yar</p>
                   <p className="text-slate-600">Surge in ride requests near Mansoor Hotel and Hargeisa Mall.</p>
@@ -2273,27 +2186,8 @@ export const MobileDriverApp: React.FC = () => {
         isOpen={showLocationModal}
         onClose={() => setShowLocationModal(false)}
       />
-      <DriverCommissionWalletModal
-        isOpen={showWalletModal}
-        onClose={() => setShowWalletModal(false)}
-      />
       <DriverEmergencySosModal isOpen={showSosModal} onClose={() => setShowSosModal(false)} />
 
-      {showEarningsModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white text-slate-900 border border-slate-200 rounded-3xl p-5 w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl">
-            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <h3 className="font-black text-slate-900 text-base">Driver Daily Earnings</h3>
-              <button onClick={() => setShowEarningsModal(false)} className="p-1.5 rounded-xl bg-slate-100 text-slate-600">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="pt-3">
-              <DriverEarningsView />
-            </div>
-          </div>
-        </div>
-      )}
 
       {showActivityModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
