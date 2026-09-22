@@ -216,14 +216,20 @@ export const LoginScreen: React.FC = () => {
             return;
           }
 
-          const newRider = registerRider({
-            name: fullName.trim(),
-            phone: formattedPhone,
-          });
+          try {
+            const newRider = registerRider({
+              name: fullName.trim(),
+              phone: formattedPhone,
+            });
 
-          setIsSubmitting(false);
-          // Instant direct entry for registered rider
-          login(newRider);
+            setIsSubmitting(false);
+            // Instant direct entry for registered rider
+            login(newRider);
+          } catch (err: any) {
+            setIsSubmitting(false);
+            setFormError(err?.message || (language === 'so' ? 'Qalad ayaa ka dhacay diiwaangelinta' : 'An error occurred during registration'));
+            return;
+          }
         } else {
           // --- Sign In Existing Rider ---
           const existing = findRegisteredRider(cleanFullPhone) || findRegisteredRider(cleanPhone);
@@ -267,18 +273,24 @@ export const LoginScreen: React.FC = () => {
             return;
           }
 
-          const result = registerDriver({
-            name: fullName.trim(),
-            phone: formattedPhone,
-            password: password.trim(),
-            vehicleCategory: effectiveCategory,
-            vehicleModel: vehicleModel.trim() || 'Toyota Vitz',
-            licensePlate: licensePlate.trim() || `SL-${Math.floor(10000 + Math.random() * 90000)}`,
-            vehicleColor: vehicleColor.trim() || 'White',
-            autoApprove: false, // Sent to Admin Panel for review
-          });
+          try {
+            const result = registerDriver({
+              name: fullName.trim(),
+              phone: formattedPhone,
+              password: password.trim(),
+              vehicleCategory: effectiveCategory,
+              vehicleModel: vehicleModel.trim() || 'Toyota Vitz',
+              licensePlate: licensePlate.trim() || `SL-${Math.floor(10000 + Math.random() * 90000)}`,
+              vehicleColor: vehicleColor.trim() || 'White',
+              autoApprove: false, // Sent to Admin Panel for review
+            });
 
-          setIsSubmitting(false);
+            setIsSubmitting(false);
+          } catch (err: any) {
+            setIsSubmitting(false);
+            setFormError(err?.message || (language === 'so' ? 'Qalad ayaa ka dhacay diiwaangelinta darawalka' : 'An error occurred during driver registration'));
+            return;
+          }
 
           // Show confirmation modal for pending admin review
           setSuccessModalData({

@@ -24,7 +24,6 @@ const PREDICTIVE_PEAK_WINDOWS = [
 ];
 
 export const DriverHotspotsModal: React.FC<DriverHotspotsModalProps> = ({ isOpen, onClose }) => {
-  const { topUpDriverWallet } = useRide();
   const [claimedBounties, setClaimedBounties] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState<'hotspots' | 'predictive' | 'bounties'>('hotspots');
   const [bountyClaimToast, setBountyClaimToast] = useState<string | null>(null);
@@ -34,8 +33,7 @@ export const DriverHotspotsModal: React.FC<DriverHotspotsModalProps> = ({ isOpen
   const handleActivateBounty = (zoneId: string, zoneName: string, amount: number) => {
     if (claimedBounties.includes(zoneId)) return;
     setClaimedBounties((prev) => [...prev, zoneId]);
-    topUpDriverWallet(amount, 'card');
-    setBountyClaimToast(`🎉 Corridor Quest Activated! +$${amount.toFixed(2)} USD added upon completing 2 rides in ${zoneName}.`);
+    setBountyClaimToast(`🎉 Corridor Quest Activated! Complete 2 rides in ${zoneName} for bonus.`);
     setTimeout(() => setBountyClaimToast(null), 4000);
   };
 

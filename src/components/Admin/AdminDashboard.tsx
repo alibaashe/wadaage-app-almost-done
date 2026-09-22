@@ -7,11 +7,11 @@ import { UnifiedMap } from '../Map/UnifiedMap';
 import { BroadcastManager } from './BroadcastManager';
 import { CouponManager } from './CouponManager';
 import { DriverApprovalTable } from './DriverApprovalTable';
-import { DriverTopUpControlTable } from './DriverTopUpControlTable';
 import { PaymentGatewaysConfig } from './PaymentGatewaysConfig';
 import { PricingSurgeControl } from './PricingSurgeControl';
 import { RolePermissionManager } from './RolePermissionManager';
 import { UserManagementTable } from './UserManagementTable';
+import { DriverTopUpControlTable } from './DriverTopUpControlTable';
 import { GodsEyeViewMap } from './GodsEyeViewMap';
 import { GeofenceZoneManager } from './GeofenceZoneManager';
 import { FraudDetectionPanel } from './FraudDetectionPanel';
@@ -28,13 +28,11 @@ import { WhatsAppOtpControlPanel } from './WhatsAppOtpControlPanel';
 import { SecurityEncryptionCenter } from './SecurityEncryptionCenter';
 
 export const AdminDashboard: React.FC = () => {
-  const { drivers, currentRide, pricing, dispatchDriverToRide, driverWalletTransactions } = useRide();
+  const { drivers, currentRide, pricing, dispatchDriverToRide } = useRide();
   const [activeTab, setActiveTab] = useState<
-    'dispatch' | 'flow_matching' | 'pricing' | 'approval' | 'topup' | 'users' | 'broadcast' | 'coupons' | 'roles' | 'payments' | 'whatsapp' | 'security' | 'hostinger' | 'database' | 'playstore'
+    'dispatch' | 'flow_matching' | 'pricing' | 'approval' | 'users' | 'broadcast' | 'coupons' | 'roles' | 'payments' | 'whatsapp' | 'security' | 'hostinger' | 'database' | 'playstore' | 'wallets'
   >('dispatch');
   const [showSurgeHeatmap, setShowSurgeHeatmap] = useState(true);
-
-  const pendingTopUpCount = driverWalletTransactions.filter((tx) => tx.status === 'pending_verification').length;
 
   // Modals for sophisticated features
   const [showGodsEyeModal, setShowGodsEyeModal] = useState(false);
@@ -259,6 +257,21 @@ export const AdminDashboard: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('wallets')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shrink-0 ${
+            activeTab === 'wallets'
+              ? 'bg-blue-500 text-slate-950 font-black shadow-md ring-2 ring-blue-400/40'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Wallet className="w-4 h-4 text-blue-400" />
+          <span>Driver Wallet Manager</span>
+          <span className="bg-blue-500/20 text-blue-400 text-[9px] px-1.5 py-0.2 rounded-full font-black uppercase">
+            V2 SLSH
+          </span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('approval')}
           className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shrink-0 ${
             activeTab === 'approval'
@@ -270,22 +283,6 @@ export const AdminDashboard: React.FC = () => {
           <span>Driver Approvals</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab('topup')}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shrink-0 relative ${
-            activeTab === 'topup'
-              ? 'bg-emerald-500 text-slate-950 shadow-md'
-              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          <Wallet className="w-4 h-4" />
-          <span>Driver Top-Ups</span>
-          {pendingTopUpCount > 0 && (
-            <span className="ml-1 px-1.5 py-0.2 bg-amber-500 text-slate-950 font-black text-[10px] rounded-full animate-pulse">
-              {pendingTopUpCount}
-            </span>
-          )}
-        </button>
 
         <button
           onClick={() => setActiveTab('users')}
@@ -522,12 +519,12 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {activeTab === 'wallets' && <DriverTopUpControlTable />}
       {activeTab === 'flow_matching' && <FlowMatchingControlCenter />}
       {activeTab === 'pricing' && <PricingSurgeControl />}
       {activeTab === 'broadcast' && <BroadcastManager />}
       {activeTab === 'coupons' && <CouponManager />}
       {activeTab === 'approval' && <DriverApprovalTable />}
-      {activeTab === 'topup' && <DriverTopUpControlTable />}
       {activeTab === 'users' && <UserManagementTable />}
       {activeTab === 'roles' && <RolePermissionManager />}
       {activeTab === 'payments' && <PaymentGatewaysConfig />}

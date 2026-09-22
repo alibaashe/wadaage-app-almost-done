@@ -10,9 +10,9 @@ import { PromosModal } from './Passenger/PromosModal';
 import { SafetyCenterModal } from './Passenger/SafetyCenterModal';
 import { TripHistoryModal } from './Passenger/TripHistoryModal';
 import { WalletModal } from './Passenger/WalletModal';
-import { DriverCommissionWalletModal } from './Driver/DriverCommissionWalletModal';
 import { AppInfoWalletModal } from './Common/AppInfoWalletModal';
 import { PlayStorePublishingModal } from './Admin/PlayStorePublishingModal';
+import { WadaageDriverWalletModal } from './Driver/WadaageDriverWalletModal';
 import { SomalilandFlag } from './Common/SomalilandFlag';
 import { WadaageLogo } from './Common/WadaageLogo';
 
@@ -22,9 +22,13 @@ export interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onBackToWebsite, onNavigate }) => {
-  const { role, setRole, walletBalance, driverWalletBalanceUsd, soundEnabled, setSoundEnabled, currentUser, logout, language, setLanguage, t } = useRide();
+  const { role, setRole, walletBalance, soundEnabled, setSoundEnabled, currentUser, logout, language, setLanguage, t, driverWallets, getDriverSlshBalance } = useRide();
+  const driverBalanceSlsh =
+    driverWallets[currentUser?.id || ''] ??
+    driverWallets[currentUser?.phone || ''] ??
+    getDriverSlshBalance(currentUser?.id || 'drv_01');
   const [showWalletModal, setShowWalletModal] = useState(false);
-  const [showDriverCommissionModal, setShowDriverCommissionModal] = useState(false);
+  const [showDriverWalletModal, setShowDriverWalletModal] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
   const [showAnnouncements, setShowAnnouncements] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -173,25 +177,40 @@ export const Header: React.FC<HeaderProps> = ({ onBackToWebsite, onNavigate }) =
               <span className="hidden xl:inline">Play Store</span>
             </button>
 
-            {/* Wallet Quick Balance Button - Only for Driver & Admin (Not for Rider) */}
-            {role !== 'passenger' && (
+            {/* Driver V2 SLSH Prepaid Balance Widget in Header */}
+            {role === 'driver' && (
               <button
-                onClick={() => {
-                  if (role === 'driver') {
-                    setShowDriverCommissionModal(true);
-                  } else {
-                    setShowWalletModal(true);
-                  }
-                }}
+                onClick={() => setShowDriverWalletModal(true)}
+                className="bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 px-3 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 text-blue-300 transition-all active:scale-95 shadow-sm"
+                title="WADAAGE DRIVER PREPAID BALANCE"
+              >
+                <div className="w-5 h-5 rounded-lg bg-blue-500/20 text-blue-400 flex items-center justify-center font-black">
+                  <CreditCard className="w-3.5 h-3.5" />
+                </div>
+                <div className="text-left">
+                  <div className="font-black text-blue-300 text-xs leading-none">
+                    {Number(driverBalanceSlsh).toLocaleString()} SLSH
+                  </div>
+                  <div className="text-[9px] font-bold text-slate-400 font-mono">
+                    ${(Number(driverBalanceSlsh) / 10000).toFixed(2)} USD
+                  </div>
+                </div>
+              </button>
+            )}
+
+            {/* Wallet Quick Balance Button - Only for Admin (Not for Rider) */}
+            {role === 'admin' && (
+              <button
+                onClick={() => setShowWalletModal(true)}
                 className="bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 rounded-xl text-xs flex items-center space-x-1.5 text-slate-200 transition-all active:scale-95"
-                title={role === 'driver' ? 'Open Driver Commission Wallet' : 'Open Wallet & Top-Up'}
+                title="Open Wallet & Top-Up"
               >
                 <div className="w-5 h-5 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
                   <CreditCard className="w-3.5 h-3.5" />
                 </div>
                 <div className="text-left hidden sm:block">
                   <div className="font-bold text-emerald-400 leading-tight">
-                    {formatCurrency(role === 'driver' ? driverWalletBalanceUsd : walletBalance)}
+                    {formatCurrency(walletBalance)}
                   </div>
                 </div>
               </button>
@@ -253,13 +272,8 @@ export const Header: React.FC<HeaderProps> = ({ onBackToWebsite, onNavigate }) =
       </header>
 
       {/* Modals */}
-      {showDriverCommissionModal && (
-        <DriverCommissionWalletModal
-          isOpen={showDriverCommissionModal}
-          onClose={() => setShowDriverCommissionModal(false)}
-        />
-      )}
       {showWalletModal && <WalletModal onClose={() => setShowWalletModal(false)} />}
+      {showDriverWalletModal && <WadaageDriverWalletModal isOpen={showDriverWalletModal} onClose={() => setShowDriverWalletModal(false)} />}
       {showSafetyModal && <SafetyCenterModal onClose={() => setShowSafetyModal(false)} />}
       {showAnnouncements && <AnnouncementsModal onClose={() => setShowAnnouncements(false)} />}
       {showHistory && <TripHistoryModal onClose={() => setShowHistory(false)} />}

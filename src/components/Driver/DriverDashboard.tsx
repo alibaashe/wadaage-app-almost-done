@@ -1,18 +1,16 @@
 import {
   AlertTriangle, Car, ChevronUp, Coffee, Compass, FileText, Flame,
   History, Layers, Lock, MapPin, MoreHorizontal, MoreVertical, Navigation, PhoneCall,
-  Power, Shield, Star, Trophy, User, Users, Wallet, Wrench, Zap, Package,
+  Power, Shield, Star, Trophy, User, Users, Wrench, Zap, Package,
   MessageSquare, Briefcase, CheckCircle2, ChevronRight, X
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useRide } from '../../context/RideContext';
 import { formatCurrency } from '../../utils/geo';
-import { DriverEarningsView } from './DriverEarningsView';
 import { DriverActivityView } from './DriverActivityView';
 import { DriverAccountView } from './DriverAccountView';
 import { DriverSupportTickets } from './DriverSupportTickets';
 import { DriverFatigueModal } from './DriverFatigueModal';
-import { DriverCommissionWalletModal } from './DriverCommissionWalletModal';
 import { DestinationModeModal } from './DestinationModeModal';
 import { DriverHotspotsModal } from './DriverHotspotsModal';
 import { VehicleHealthModal } from './VehicleHealthModal';
@@ -39,8 +37,6 @@ export const DriverDashboard: React.FC = () => {
     currentRide,
     advanceDriverRideState,
     drivers,
-    driverWalletBalanceUsd,
-    dismissLowBalanceAlert,
     pricing,
     chatMessages,
     sendMessage,
@@ -49,12 +45,11 @@ export const DriverDashboard: React.FC = () => {
   } = useRide();
 
   const [requestTimer, setRequestTimer] = useState(60);
-  const [activeTab, setActiveTab] = useState<'rides' | 'activity' | 'wallet' | 'account'>('rides');
+  const [activeTab, setActiveTab] = useState<'rides' | 'activity' | 'account'>('rides');
 
   // Modals & Drawers state matching Screenshots
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showFatigueModal, setShowFatigueModal] = useState(false);
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const [showDestinationModal, setShowDestinationModal] = useState(false);
   const [showHotspotsModal, setShowHotspotsModal] = useState(false);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
@@ -79,9 +74,6 @@ export const DriverDashboard: React.FC = () => {
   const [mapStyleSatellite, setMapStyleSatellite] = useState(false);
   const [destinationFilter, setDestinationFilter] = useState<string | null>(null);
 
-  const currentSos = Math.round(driverWalletBalanceUsd * 10000);
-  const minThresholdUsd = pricing.driverMinWalletThresholdUsd || 0.20;
-  const isBelowMin = driverWalletBalanceUsd < minThresholdUsd;
   const currentDriver = drivers.find((d) => d.phone === currentUser?.phone || d.id === currentUser?.id) || drivers[0] || {
     id: currentUser?.id || 'drv_live',
     name: currentUser?.name || 'Driver Partner',
@@ -172,15 +164,6 @@ export const DriverDashboard: React.FC = () => {
             <span>Trip History</span>
           </button>
           <button
-            onClick={() => setActiveTab('wallet')}
-            className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center space-x-1.5 ${
-              activeTab === 'wallet' ? 'bg-emerald-500 text-slate-950 shadow-lg' : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Wallet className="w-4 h-4" />
-            <span>Earnings & Wallet</span>
-          </button>
-          <button
             onClick={() => setActiveTab('account')}
             className={`px-4 py-2 rounded-xl text-xs font-black transition flex items-center space-x-1.5 ${
               activeTab === 'account' ? 'bg-emerald-500 text-slate-950 shadow-lg' : 'text-slate-400 hover:text-white'
@@ -203,7 +186,6 @@ export const DriverDashboard: React.FC = () => {
       </div>
 
       {activeTab === 'activity' && <DriverActivityView />}
-      {activeTab === 'wallet' && <DriverEarningsView />}
       {activeTab === 'account' && (
         <DriverAccountView
           onOpenSupportModal={() => setShowSupportModal(true)}
@@ -288,23 +270,8 @@ export const DriverDashboard: React.FC = () => {
                     </span>
                   </div>
 
-                  <div className="p-2.5 bg-slate-50 dark:bg-slate-800/80 rounded-xl flex items-center justify-between">
-                    <span className="text-slate-500 font-semibold">Prepaid Driver Wallet</span>
-                    <span className="font-mono font-black text-emerald-400">
-                      {Math.round(driverWalletBalanceUsd * 10000).toLocaleString()} SOS (${driverWalletBalanceUsd.toFixed(2)})
-                    </span>
-                  </div>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setShowEarningsOverlay(false);
-                    setShowWalletModal(true);
-                  }}
-                  className="w-full py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-[11px] uppercase"
-                >
-                  Prepay Wallet (ZAAD 0636807814 / eDahab 0656807814)
-                </button>
               </div>
             )}
 
@@ -312,10 +279,7 @@ export const DriverDashboard: React.FC = () => {
             <div className="relative z-10 flex flex-col items-center my-auto">
               <button
                 onClick={() => {
-                  const success = toggleDriverOnline(!driverModeOnline);
-                  if (!success) {
-                    setShowWalletModal(true);
-                  }
+                  toggleDriverOnline(!driverModeOnline);
                 }}
                 className={`px-8 py-3.5 rounded-full font-black text-sm tracking-wider uppercase transition-all shadow-2xl border-2 flex items-center space-x-2.5 hover:scale-105 active:scale-95 ${
                   driverModeOnline
@@ -457,36 +421,6 @@ export const DriverDashboard: React.FC = () => {
               </button>
             </div>
 
-            {/* Reminder Alert Box (Exact match to Screenshots 1 & 4) */}
-            <div className={`p-4 rounded-2xl border flex items-center justify-between transition-all ${
-              isBelowMin
-                ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-900 text-rose-900 dark:text-rose-200'
-                : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-900 dark:text-slate-200'
-            }`}>
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                  <Wallet className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-extrabold text-xs text-slate-900 dark:text-white">Reminder</span>
-                    <span className="bg-rose-600 text-white text-[10px] font-black px-2 py-0.2 rounded uppercase">
-                      URGENT
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 font-medium mt-0.5">
-                    Credit Wallet is <b className="text-emerald-600 dark:text-emerald-400 font-mono">${driverWalletBalanceUsd.toFixed(2)}</b> (<b>{currentSos.toLocaleString()} SOS</b>). Top up to keep receiving jobs.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowWalletModal(true)}
-                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider shrink-0 transition shadow-md"
-              >
-                Top Up
-              </button>
-            </div>
 
           </div>
 
@@ -887,13 +821,6 @@ export const DriverDashboard: React.FC = () => {
           setShowFatigueModal(false);
         }}
         onClose={() => setShowFatigueModal(false)}
-      />
-      <DriverCommissionWalletModal
-        isOpen={showWalletModal}
-        onClose={() => {
-          setShowWalletModal(false);
-          dismissLowBalanceAlert();
-        }}
       />
       <DestinationModeModal
         isOpen={showDestinationModal}

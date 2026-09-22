@@ -9,7 +9,7 @@ interface TransactionHistoryModalProps {
 }
 
 export const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = ({ isOpen, onClose }) => {
-  const { driverWalletTransactions, transactions: passengerTransactions } = useRide();
+  const { transactions: passengerTransactions } = useRide();
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('all');
 
@@ -17,16 +17,6 @@ export const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = (
 
   // Unify real live transactions
   const allTransactions = [
-    ...driverWalletTransactions.map((dtx) => ({
-      id: dtx.id,
-      timestamp: dtx.date,
-      user: dtx.driverName || 'Captain / Driver',
-      role: 'Driver' as const,
-      type: dtx.type === 'commission_deduction' ? 'Commission Deduction' : (dtx.type as string) === 'driver_payout' ? 'Driver Payout' : 'Wallet Top-Up',
-      gateway: dtx.paymentProvider === 'zaad' ? 'ZAAD Service' : dtx.paymentProvider === 'edahab' ? 'eDahab' : dtx.paymentProvider === 'evc' ? 'EVC Plus' : 'System Wallet',
-      amount: Math.abs(dtx.amountUsd),
-      status: dtx.status === 'completed' ? 'Completed' : dtx.status === 'pending_verification' ? 'Processing' : 'Refunded',
-    })),
     ...passengerTransactions.map((ptx) => ({
       id: ptx.id,
       timestamp: ptx.date,
@@ -46,9 +36,6 @@ export const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = (
   });
 
   const totalVolume = filtered.reduce((acc, tx) => acc + tx.amount, 0);
-  const netCommission = driverWalletTransactions
-    .filter((t) => t.type === 'commission_deduction' && t.status === 'completed')
-    .reduce((acc, t) => acc + Math.abs(t.amountUsd), 0);
 
   return (
     <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -155,7 +142,6 @@ export const TransactionHistoryModal: React.FC<TransactionHistoryModalProps> = (
           <span>Showing {filtered.length} logged transactions</span>
           <div className="flex items-center space-x-4">
             <span>Total Volume: <b className="text-white">{formatCurrency(totalVolume)}</b></span>
-            <span>Net Platform Revenue: <b className="text-emerald-400">{formatCurrency(netCommission)}</b></span>
           </div>
         </div>
       </div>

@@ -1,583 +1,274 @@
-import {
-  AlertTriangle,
-  ArrowRight,
-  Check,
-  CheckCircle2,
-  Copy,
-  DollarSign,
-  FileText,
-  Lock,
-  PhoneCall,
-  RefreshCw,
-  ShieldCheck,
-  Wallet,
-  X,
-  Zap,
-  TrendingUp,
-  History,
-  CreditCard,
-  QrCode
-} from 'lucide-react';
 import React, { useState } from 'react';
+import { X, CreditCard, ArrowDownLeft, ArrowUpRight, CheckCircle, Clock, AlertCircle, Send, DollarSign } from 'lucide-react';
 import { useRide } from '../../context/RideContext';
-import { formatCurrency, EXCHANGE_RATE_USD_TO_SLSH } from '../../utils/geo';
-import { WadaageLogo } from '../Common/WadaageLogo';
 
 interface WadaageDriverWalletModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
 export const WadaageDriverWalletModal: React.FC<WadaageDriverWalletModalProps> = ({ isOpen, onClose }) => {
-  const {
-    driverWalletBalanceUsd,
-    driverWalletTransactions,
-    topUpDriverWallet,
-    pricing,
-    driverModeOnline,
-    drivers,
-    currentUser,
-  } = useRide();
-
-  const [walletTab, setWalletTab] = useState<'topup' | 'history' | 'earnings'>('topup');
-  const [selectedAmount, setSelectedAmount] = useState<number>(1000); // Default 1,000 SOS ($0.10)
-  const [provider, setProvider] = useState<'zaad' | 'evc' | 'edahab' | 'card'>('zaad');
-  const [phone, setPhone] = useState<string>(currentUser?.phone || '0634112233');
+  const { currentUser, driverWallets, getDriverSlshBalance, driverWalletTransactions, requestDriverTopUp } = useRide();
+  const [topUpAmountSlsh, setTopUpAmountSlsh] = useState<number>(50000);
+  const [paymentProvider, setPaymentProvider] = useState<'zaad' | 'edahab' | 'evc'>('zaad');
   const [referenceId, setReferenceId] = useState<string>('');
-  const [smsText, setSmsText] = useState<string>('');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [copiedUSSD, setCopiedUSSD] = useState(false);
+  const [submittedTxId, setSubmittedTxId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'topup' | 'history'>('topup');
 
   if (!isOpen) return null;
 
-  const currentDriverRecord = drivers.find(
-    (d) => d.id === currentUser?.id || d.phone === currentUser?.phone || d.name === currentUser?.name
-  ) || drivers[0];
-
-  const minThresholdUsd = pricing.driverMinWalletThresholdUsd || 0.10;
-  const minThresholdSos = Math.round(minThresholdUsd * EXCHANGE_RATE_USD_TO_SLSH); // 1,000 SLSH
-  const currentSos = Math.round(driverWalletBalanceUsd * EXCHANGE_RATE_USD_TO_SLSH);
-  const feeUsd = pricing.driverCommissionFeeUsd || 0.10;
-  const feeSos = Math.round(feeUsd * EXCHANGE_RATE_USD_TO_SLSH); // 1,000 SLSH
-
-  const isBelowMin = currentSos < minThresholdSos;
-
-  // Dynamic USSD String Generator
-  const ussdCode = provider === 'zaad'
-    ? `*880*0636807814*${selectedAmount}#`
-    : provider === 'edahab'
-    ? `*770*0656807814*${selectedAmount}#`
-    : provider === 'evc'
-    ? `*770*0613680781*${(selectedAmount / EXCHANGE_RATE_USD_TO_SLSH).toFixed(2)}#`
-    : '';
-
-  const handleCopyUSSD = () => {
-    if (!ussdCode) return;
-    navigator.clipboard.writeText(ussdCode);
-    setCopiedUSSD(true);
-    setTimeout(() => setCopiedUSSD(false), 2500);
-  };
+  const driverId = currentUser?.id || 'drv_01';
+  const currentBalanceSlsh =
+    driverWallets[currentUser?.id || ''] ??
+    driverWallets[currentUser?.phone || ''] ??
+    getDriverSlshBalance(driverId);
+  const currentBalanceUsd = currentBalanceSlsh / 10000;
 
   const handleTopUpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (selectedAmount <= 0) return;
+    if (!referenceId.trim()) {
+      alert('Please enter your ZAAD/eDahab transaction reference number.');
+      return;
+    }
 
-    setIsProcessing(true);
-    setErrorMsg(null);
-    setSuccessMsg(null);
-
+    const tx = requestDriverTopUp(driverId, topUpAmountSlsh, paymentProvider, referenceId.trim());
+    setSubmittedTxId(tx.id);
+    setReferenceId('');
     setTimeout(() => {
-      const result = topUpDriverWallet(selectedAmount, provider, phone, referenceId, smsText);
-      setIsProcessing(false);
-      if (result.success) {
-        setSuccessMsg(result.message);
-        setReferenceId('');
-        setSmsText('');
-        setTimeout(() => {
-          setSuccessMsg(null);
-        }, 4000);
-      } else {
-        setErrorMsg(result.message);
-      }
-    }, 1000);
+      setSubmittedTxId(null);
+      setActiveTab('history');
+    }, 2000);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in font-sans">
-      <div className="bg-slate-900 text-white rounded-3xl max-w-lg w-full border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+  const driverTxs = driverWalletTransactions.filter(
+    (tx) => tx.driverId === driverId || tx.driverId === 'drv_01' || tx.driverId === 'live_driver'
+  );
 
-        {/* 1. BRANDED HEADER */}
-        <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-950 via-slate-900 to-slate-900 border-b border-slate-800 flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-3">
-            <div className="p-2.5 rounded-2xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">
-              <Wallet className="w-6 h-6" />
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+      <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="p-5 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+          <div className="flex items-center space-x-2.5">
+            <div className="p-2 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-500/30">
+              <CreditCard className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <WadaageLogo variant="wordmark" size="xs" appType="driver" />
-                <span className="text-[9px] bg-emerald-500 text-slate-950 font-black px-2 py-0.5 rounded-full uppercase">
-                  Wadaage Wallet
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Driver Prepaid Balance & Commission Ledger (1,000 SLSH / Trip)
-              </p>
+              <h3 className="text-base font-black text-white tracking-wide">Driver Prepaid SLSH Wallet</h3>
+              <p className="text-xs text-slate-400 font-medium">Real-time Commission & Top-Up Center</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+            className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* 2. SUB-NAVIGATION TABS */}
-        <div className="grid grid-cols-3 bg-slate-950 p-1.5 border-b border-slate-800 text-xs font-black">
-          <button
-            onClick={() => setWalletTab('topup')}
-            className={`py-2 rounded-xl transition flex items-center justify-center space-x-1.5 cursor-pointer ${
-              walletTab === 'topup'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5" />
-            <span>TOP-UP WALLET</span>
-          </button>
-
-          <button
-            onClick={() => setWalletTab('history')}
-            className={`py-2 rounded-xl transition flex items-center justify-center space-x-1.5 cursor-pointer ${
-              walletTab === 'history'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <History className="w-3.5 h-3.5" />
-            <span>LEDGER LOGS</span>
-          </button>
-
-          <button
-            onClick={() => setWalletTab('earnings')}
-            className={`py-2 rounded-xl transition flex items-center justify-center space-x-1.5 cursor-pointer ${
-              walletTab === 'earnings'
-                ? 'bg-emerald-500 text-slate-950 shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>EARNINGS</span>
-          </button>
-        </div>
-
-        <div className="p-4 sm:p-5 space-y-4 overflow-y-auto custom-scrollbar">
-
-          {/* 3. CURRENT WALLET BALANCE SUMMARY CARD */}
-          <div className={`p-4 rounded-2xl border ${
-            isBelowMin
-              ? 'bg-rose-950/40 border-rose-500/50 text-rose-200'
-              : 'bg-emerald-950/30 border-emerald-500/40 text-emerald-100'
-          }`}>
-            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400">
-              <span>Wadaage Driver Prepaid Balance</span>
-              {isBelowMin ? (
-                <span className="bg-rose-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" /> LOW BALANCE (&lt; 1,000 SLSH)
-                </span>
-              ) : (
-                <span className="bg-emerald-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> ACTIVE / ONLINE READY
-                </span>
-              )}
+        {/* Content Body */}
+        <div className="p-5 overflow-y-auto space-y-5 flex-1">
+          {/* Balance Display Card */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-blue-900/80 via-slate-900 to-slate-900 border border-blue-500/30 text-white space-y-2">
+            <span className="text-[10px] font-black uppercase text-blue-300 tracking-wider">
+              Wadaage Prepaid Balance
+            </span>
+            <div className="text-3xl font-black font-mono text-white tracking-tight">
+              {Number(currentBalanceSlsh).toLocaleString()} SLSH
             </div>
-
-            <div className="flex items-baseline space-x-2 mt-2">
-              <span className="text-3xl font-black text-white font-mono">
-                {currentSos.toLocaleString()} SLSH
-              </span>
-              <span className="text-sm font-bold text-emerald-400 font-mono">
-                (${driverWalletBalanceUsd.toFixed(2)} USD)
-              </span>
+            <div className="flex items-center justify-between text-xs text-slate-400 font-bold pt-1 border-t border-slate-800">
+              <span>Equivalent USD Value:</span>
+              <span className="text-emerald-400 font-mono text-sm">${currentBalanceUsd.toFixed(2)} USD</span>
             </div>
-
-            {/* Threshold Warning Banner if low balance */}
-            {isBelowMin && (
-              <div className="mt-3 p-3 bg-rose-500/20 rounded-xl border border-rose-500/30 text-xs text-rose-300 font-medium space-y-1">
-                <div className="font-extrabold flex items-center gap-1 text-rose-200">
-                  <Lock className="w-4 h-4 text-rose-400" />
-                  Account Online Lockout Notice
-                </div>
-                <p className="text-[11px] text-rose-300/90">
-                  Your prepaid balance is below <b>1,000 SLSH ($0.10 USD)</b>. Top up via <b>0636807814</b> (ZAAD) or <b>0656807814</b> (eDahab) to go online!
-                </p>
+            {currentBalanceSlsh < 0 && (
+              <div className="mt-2 p-2.5 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 text-xs font-bold flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+                <span>Account locked! Top up at least 1,000 SLSH to go online.</span>
               </div>
             )}
           </div>
 
-          {/* TAB 1: TOP-UP FORM & USSD GATEWAY */}
-          {walletTab === 'topup' && (
-            <div className="space-y-4">
-              {/* Official Merchant Deposit Info & Interactive USSD Generator */}
-              <div className="bg-slate-950 p-4 rounded-2xl border border-emerald-500/40 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] uppercase font-black tracking-wider text-emerald-400 block">
-                    Merchant Payment Gateway Accounts:
-                  </span>
-                  <span className="text-[10px] bg-emerald-500/20 text-emerald-300 font-mono font-bold px-2 py-0.5 rounded-full border border-emerald-500/30">
-                    Verified Gateway Account
-                  </span>
+          {/* Navigation Tabs */}
+          <div className="flex rounded-xl bg-slate-800/80 p-1 border border-slate-700/60">
+            <button
+              onClick={() => setActiveTab('topup')}
+              className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${
+                activeTab === 'topup' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Top Up Balance
+            </button>
+            <button
+              onClick={() => setActiveTab('history')}
+              className={`flex-1 py-2 text-xs font-black rounded-lg transition-all ${
+                activeTab === 'history' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Transaction History ({driverTxs.length})
+            </button>
+          </div>
+
+          {activeTab === 'topup' ? (
+            /* Top Up Form */
+            <form onSubmit={handleTopUpSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                  1. Select Payment Provider
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentProvider('zaad')}
+                    className={`p-3 rounded-xl border text-xs font-black transition-all flex flex-col items-center space-y-1 ${
+                      paymentProvider === 'zaad'
+                        ? 'border-emerald-500 bg-emerald-500/20 text-emerald-300'
+                        : 'border-slate-800 bg-slate-800/50 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <span>ZAAD Services</span>
+                    <span className="text-[10px] text-slate-400 font-mono">*388#</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentProvider('edahab')}
+                    className={`p-3 rounded-xl border text-xs font-black transition-all flex flex-col items-center space-y-1 ${
+                      paymentProvider === 'edahab'
+                        ? 'border-yellow-500 bg-yellow-500/20 text-yellow-300'
+                        : 'border-slate-800 bg-slate-800/50 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <span>eDahab</span>
+                    <span className="text-[10px] text-slate-400 font-mono">*712#</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentProvider('evc')}
+                    className={`p-3 rounded-xl border text-xs font-black transition-all flex flex-col items-center space-y-1 ${
+                      paymentProvider === 'evc'
+                        ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                        : 'border-slate-800 bg-slate-800/50 text-slate-400 hover:border-slate-700'
+                    }`}
+                  >
+                    <span>EVC Plus</span>
+                    <span className="text-[10px] text-slate-400 font-mono">*770#</span>
+                  </button>
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                  <div className="bg-slate-900 p-3 rounded-xl border border-emerald-500/30 flex items-center justify-between">
-                    <div>
-                      <span className="text-emerald-400 font-extrabold block text-xs">📱 Telesom ZAAD</span>
-                      <span className="text-white font-mono font-black text-sm">0636807814</span>
-                    </div>
-                    <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-1 rounded font-bold font-mono">*880#</span>
-                  </div>
-
-                  <div className="bg-slate-900 p-3 rounded-xl border border-yellow-500/30 flex items-center justify-between">
-                    <div>
-                      <span className="text-yellow-400 font-extrabold block text-xs">📱 Somtel eDahab</span>
-                      <span className="text-white font-mono font-black text-sm">0656807814</span>
-                    </div>
-                    <span className="text-[10px] bg-yellow-500/20 text-yellow-300 px-2 py-1 rounded font-bold font-mono">*770#</span>
-                  </div>
-                </div>
-
-                {/* Dynamic USSD String Box */}
-                {provider !== 'card' && ussdCode && (
-                  <div className="p-3 bg-gradient-to-r from-emerald-950/80 via-slate-900 to-slate-900 rounded-xl border border-emerald-500/50 space-y-2">
-                    <div className="text-[10px] uppercase font-extrabold text-slate-400 flex items-center justify-between">
-                      <span>USSD Code ({selectedAmount.toLocaleString()} SLSH):</span>
-                      {copiedUSSD && (
-                        <span className="text-emerald-400 font-bold flex items-center gap-1">
-                          <Check className="w-3 h-3" /> Copied!
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="p-2.5 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between font-mono">
-                      <span className="text-xl font-black text-emerald-400 tracking-wider">
-                        {ussdCode}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleCopyUSSD}
-                        className="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition text-xs font-bold flex items-center gap-1 cursor-pointer"
-                        title="Copy USSD Code"
-                      >
-                        <Copy className="w-4 h-4" />
-                        <span className="hidden sm:inline">Copy</span>
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 pt-0.5">
-                      <a
-                        href={`tel:${encodeURIComponent(ussdCode)}`}
-                        className="py-2 px-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs transition flex items-center justify-center space-x-1 shadow"
-                      >
-                        <PhoneCall className="w-3.5 h-3.5" />
-                        <span>Dial USSD</span>
-                      </a>
-
-                      <button
-                        type="button"
-                        onClick={handleCopyUSSD}
-                        className="py-2 px-3 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition flex items-center justify-center space-x-1 border border-slate-700 cursor-pointer"
-                      >
-                        <Copy className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>Copy Code</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
               </div>
 
-              {/* Form */}
-              <form onSubmit={handleTopUpSubmit} className="space-y-3.5">
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-2">
-                    Select Prepaid Amount to Add:
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[
-                      { sos: 1000, usd: 0.10, trips: '1 Trip Fee' },
-                      { sos: 5000, usd: 0.50, trips: '5 Trips' },
-                      { sos: 10000, usd: 1.00, trips: '10 Trips' },
-                      { sos: 50000, usd: 5.00, trips: '50 Trips' },
-                    ].map((item) => (
-                      <button
-                        key={item.sos}
-                        type="button"
-                        onClick={() => setSelectedAmount(item.sos)}
-                        className={`py-2.5 px-2 rounded-xl text-xs font-black transition border text-center cursor-pointer ${
-                          selectedAmount === item.sos
-                            ? 'bg-emerald-500 text-slate-950 border-emerald-400 shadow-md scale-[1.02]'
-                            : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
-                        }`}
-                      >
-                        <div>{item.sos.toLocaleString()} SLSH</div>
-                        <div className="text-[10px] opacity-80">${item.usd.toFixed(2)} ({item.trips})</div>
-                      </button>
-                    ))}
-                  </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                  2. Select Top-Up Amount (SLSH)
+                </label>
+                <div className="grid grid-cols-3 gap-2 mb-2">
+                  {[20000, 50000, 100000].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setTopUpAmountSlsh(amt)}
+                      className={`py-2.5 px-3 rounded-xl border text-xs font-black font-mono transition-all ${
+                        topUpAmountSlsh === amt
+                          ? 'border-blue-500 bg-blue-500/20 text-blue-300'
+                          : 'border-slate-800 bg-slate-800/50 text-slate-400 hover:border-slate-700'
+                      }`}
+                    >
+                      {amt.toLocaleString()} SLSH
+                      <span className="block text-[9px] text-slate-400 font-sans font-normal">
+                        (${(amt / 10000).toFixed(2)})
+                      </span>
+                    </button>
+                  ))}
                 </div>
+              </div>
 
-                {/* Provider Selection */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-300 mb-2">
-                    Payment Gateway Provider:
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setProvider('zaad')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center transition cursor-pointer ${
-                        provider === 'zaad'
-                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <span className="font-extrabold text-white text-xs">ZAAD</span>
-                      <span className="text-[10px] text-emerald-400 font-mono">0636807814</span>
-                    </button>
+              <div>
+                <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-1.5">
+                  3. Payment Reference Number
+                </label>
+                <input
+                  type="text"
+                  value={referenceId}
+                  onChange={(e) => setReferenceId(e.target.value)}
+                  placeholder="e.g. REF-829104 or Mobile Tx ID"
+                  className="w-full px-4 py-3 rounded-xl bg-slate-800/80 border border-slate-700 text-white placeholder-slate-500 font-mono text-xs focus:outline-none focus:border-blue-500 transition-colors"
+                />
+              </div>
 
-                    <button
-                      type="button"
-                      onClick={() => setProvider('edahab')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center transition cursor-pointer ${
-                        provider === 'edahab'
-                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <span className="font-extrabold text-white text-xs">eDahab</span>
-                      <span className="text-[10px] text-yellow-400 font-mono">0656807814</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setProvider('evc')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center transition cursor-pointer ${
-                        provider === 'evc'
-                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <span className="font-extrabold text-white text-xs">EVC Plus</span>
-                      <span className="text-[9px] text-amber-400">*770#</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setProvider('card')}
-                      className={`p-2.5 rounded-xl border text-xs font-bold flex flex-col items-center justify-center transition cursor-pointer ${
-                        provider === 'card'
-                          ? 'bg-emerald-500/20 border-emerald-500 text-emerald-300'
-                          : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      <span className="font-extrabold text-white text-xs">Card</span>
-                      <span className="text-[9px] text-blue-400">Mastercard/Visa</span>
-                    </button>
-                  </div>
+              {submittedTxId ? (
+                <div className="p-3.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center justify-center space-x-2">
+                  <CheckCircle className="w-4 h-4 text-emerald-400" />
+                  <span>Top-Up request submitted! Pending admin verification.</span>
                 </div>
-
-                {/* Reference / Phone Input */}
-                {provider !== 'card' && (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1">
-                        Driver Mobile Number:
-                      </label>
-                      <input
-                        type="text"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="0634112233"
-                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-emerald-500 font-mono"
-                        required
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center justify-between">
-                        <span>Transaction Ref / SMS Code:</span>
-                        <span className="text-[10px] text-emerald-400">Auto-Verified</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={referenceId}
-                        onChange={(e) => setReferenceId(e.target.value)}
-                        placeholder="e.g. 9812401 or Ref ID"
-                        className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs font-bold text-white focus:outline-none focus:border-emerald-500 font-mono"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Error Message */}
-                {errorMsg && (
-                  <div className="p-3 bg-rose-500/20 border border-rose-500/40 text-rose-300 rounded-xl text-xs font-bold flex items-center justify-between">
-                    <span>{errorMsg}</span>
-                    <button type="button" onClick={() => setErrorMsg(null)} className="text-rose-400 hover:text-white">
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-
-                {/* Success Message */}
-                {successMsg && (
-                  <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2">
-                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>{successMsg}</span>
-                  </div>
-                )}
-
+              ) : (
                 <button
                   type="submit"
-                  disabled={isProcessing}
-                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs shadow-lg transition flex items-center justify-center space-x-2 disabled:opacity-50 uppercase tracking-wider cursor-pointer"
+                  className="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider shadow-lg flex items-center justify-center space-x-2 transition-transform active:scale-98"
                 >
-                  {isProcessing ? (
-                    <>
-                      <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Verifying Mobile Gateway & Activating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <ShieldCheck className="w-4 h-4" />
-                      <span>Verify {selectedAmount.toLocaleString()} SLSH (${(selectedAmount/10000).toFixed(2)}) & Top Up</span>
-                    </>
-                  )}
+                  <Send className="w-4 h-4" />
+                  <span>Submit Top-Up Request</span>
                 </button>
-              </form>
-            </div>
-          )}
-
-          {/* TAB 2: TRANSACTION & COMMISSION LEDGER LOGS */}
-          {walletTab === 'history' && (
-            <div className="space-y-3">
-              <h4 className="font-extrabold text-xs text-slate-300 uppercase tracking-wider flex items-center justify-between">
-                <span>Commission Wallet Statement</span>
-                <span className="text-[10px] text-slate-500 font-mono">{driverWalletTransactions.length} Transactions</span>
-              </h4>
-
-              <div className="space-y-2 max-h-80 overflow-y-auto custom-scrollbar">
-                {driverWalletTransactions.length === 0 ? (
-                  <div className="p-8 text-center text-slate-500 text-xs bg-slate-950 rounded-2xl border border-slate-800">
-                    No wallet transactions recorded yet.
-                  </div>
-                ) : (
-                  driverWalletTransactions.map((tx) => {
-                    const isPending = tx.status === 'pending_verification';
-                    const isCompleted = tx.status === 'completed';
-                    const isRejected = tx.status === 'rejected';
-
-                    return (
+              )}
+            </form>
+          ) : (
+            /* Transaction History List */
+            <div className="space-y-2">
+              {driverTxs.length === 0 ? (
+                <div className="text-center py-8 text-slate-500 text-xs font-medium">
+                  No driver transactions recorded yet.
+                </div>
+              ) : (
+                driverTxs.map((tx) => (
+                  <div
+                    key={tx.id}
+                    className="p-3 rounded-xl bg-slate-800/60 border border-slate-800 flex items-center justify-between text-xs"
+                  >
+                    <div className="flex items-center space-x-3">
                       <div
-                        key={tx.id}
-                        className={`p-3 rounded-xl border text-xs ${
-                          isPending
-                            ? 'bg-amber-950/30 border-amber-500/40'
-                            : isRejected
-                            ? 'bg-rose-950/30 border-rose-500/40'
-                            : 'bg-slate-950 border-slate-800'
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold ${
+                          tx.type === 'TOPUP'
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                         }`}
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="space-y-0.5">
-                            <div className="flex items-center space-x-2">
-                              <span className="font-extrabold text-white block">{tx.title}</span>
-                              <span
-                                className={`text-[9px] font-black px-2 py-0.5 rounded-full uppercase ${
-                                  isCompleted
-                                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                    : isPending
-                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse'
-                                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                                }`}
-                              >
-                                {isCompleted ? 'VERIFIED' : isPending ? 'PENDING' : 'REJECTED'}
-                              </span>
-                            </div>
-
-                            <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
-                              <span>{tx.date}</span>
-                              {tx.referenceId && (
-                                <span className="bg-slate-800 text-emerald-400 px-1.5 py-0.5 rounded font-mono">
-                                  Ref: {tx.referenceId}
-                                </span>
-                              )}
-                              {tx.adminNote && (
-                                <span className="text-amber-300 font-medium">({tx.adminNote})</span>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="text-right shrink-0">
-                            <span
-                              className={`font-black font-mono block ${
-                                tx.amountUsd >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                              }`}
-                            >
-                              {tx.amountUsd >= 0 ? '+' : ''}
-                              {tx.amountSos.toLocaleString()} SLSH
-                            </span>
-                            <span className="text-[10px] text-slate-400 block font-mono">
-                              (${Math.abs(tx.amountUsd).toFixed(2)})
-                            </span>
-                          </div>
-                        </div>
+                        {tx.type === 'TOPUP' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
                       </div>
-                    );
-                  })
-                )}
-              </div>
+                      <div>
+                        <p className="font-bold text-white">{tx.title}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          {tx.timestamp.substring(0, 16).replace('T', ' ')}
+                          {tx.referenceId && ` • Ref: ${tx.referenceId}`}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p
+                        className={`font-black font-mono ${
+                          tx.type === 'TOPUP' ? 'text-emerald-400' : 'text-rose-400'
+                        }`}
+                      >
+                        {tx.type === 'TOPUP' ? '+' : '-'}{tx.amountSlsh.toLocaleString()} SLSH
+                      </p>
+                      <div className="flex items-center justify-end space-x-1 text-[10px] mt-0.5">
+                        {tx.status === 'APPROVED' && <CheckCircle className="w-3 h-3 text-emerald-400" />}
+                        {tx.status === 'PENDING' && <Clock className="w-3 h-3 text-amber-400 animate-spin" />}
+                        {tx.status === 'REJECTED' && <AlertCircle className="w-3 h-3 text-rose-400" />}
+                        <span
+                          className={`font-bold uppercase ${
+                            tx.status === 'APPROVED'
+                              ? 'text-emerald-400'
+                              : tx.status === 'PENDING'
+                              ? 'text-amber-400'
+                              : 'text-rose-400'
+                          }`}
+                        >
+                          {tx.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
-
-          {/* TAB 3: EARNINGS BREAKDOWN */}
-          {walletTab === 'earnings' && (
-            <div className="space-y-3">
-              <div className="p-4 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl border border-slate-700 text-white space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-400 uppercase font-bold tracking-wider">
-                    Today's Driver Revenue
-                  </span>
-                  <span className="text-xs font-extrabold text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800">
-                    +18% Today
-                  </span>
-                </div>
-
-                <div className="flex items-baseline space-x-2">
-                  <span className="text-3xl font-black text-white font-mono">
-                    ${(currentDriverRecord?.todayEarnings || 0).toFixed(2)}
-                  </span>
-                  <span className="text-xs text-slate-400 font-mono">
-                    / {Math.round((currentDriverRecord?.todayEarnings || 0) * EXCHANGE_RATE_USD_TO_SLSH).toLocaleString()} SLSH
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-700">
-                  <div className="p-2 bg-slate-950 rounded-xl">
-                    <span className="text-[10px] text-slate-400 block uppercase">Completed Trips</span>
-                    <span className="font-extrabold text-white text-sm">{currentDriverRecord?.totalTrips || 0} Rides</span>
-                  </div>
-                  <div className="p-2 bg-slate-950 rounded-xl">
-                    <span className="text-[10px] text-slate-400 block uppercase">Commission Fee</span>
-                    <span className="font-extrabold text-rose-400 text-sm">1,000 SLSH / Trip</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
         </div>
       </div>
     </div>

@@ -1,11 +1,16 @@
-import { ArrowUpRight, Banknote, Calendar, CheckCircle2, DollarSign, Flame, Lock, TrendingUp, Wallet } from 'lucide-react';
+import { Banknote, CheckCircle2, CreditCard, Plus, ArrowUpRight, ArrowDownLeft } from 'lucide-react';
 import React, { useState } from 'react';
 import { useRide } from '../../context/RideContext';
 import { formatCurrency } from '../../utils/geo';
-import { DriverCommissionWalletModal } from './DriverCommissionWalletModal';
+import { WadaageDriverWalletModal } from './WadaageDriverWalletModal';
 
 export const DriverEarningsView: React.FC = () => {
-  const { drivers, driverWalletBalanceUsd, driverWalletTransactions, pricing, currentUser } = useRide();
+  const { drivers, currentUser, driverWallets, getDriverSlshBalance, driverWalletTransactions } = useRide();
+  const currentBalanceSlsh =
+    driverWallets[currentUser?.id || ''] ??
+    driverWallets[currentUser?.phone || ''] ??
+    getDriverSlshBalance(currentUser?.id || 'drv_01');
+  const [showWalletModal, setShowWalletModal] = useState(false);
   const driver = drivers.find((d) => d.phone === currentUser?.phone || d.id === currentUser?.id) || drivers[0] || {
     id: currentUser?.id || 'drv_live',
     name: currentUser?.name || 'Driver Partner',
@@ -19,12 +24,6 @@ export const DriverEarningsView: React.FC = () => {
     acceptanceRate: 100,
   };
   const [cashoutSuccess, setCashoutSuccess] = useState(false);
-  const [showWalletModal, setShowWalletModal] = useState(false);
-
-  const currentSos = Math.round(driverWalletBalanceUsd * 10000);
-  const minThresholdSos = Math.round((pricing.driverMinWalletThresholdUsd || 0.10) * 10000); // 1,000 SOS
-  const feeSos = Math.round((pricing.driverCommissionFeeUsd || 0.10) * 10000); // 1,000 SOS
-  const isBelowMin = currentSos < minThresholdSos;
 
   const handleCashout = () => {
     setCashoutSuccess(true);
@@ -33,43 +32,35 @@ export const DriverEarningsView: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Driver Prepaid Commission Wallet Highlight Card */}
-      <div className={`p-5 rounded-2xl border shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 ${
-        isBelowMin
-          ? 'bg-rose-950/80 border-rose-500/60 text-white'
-          : 'bg-emerald-950/70 border-emerald-500/50 text-white'
-      }`}>
-        <div className="flex items-center space-x-3.5">
-          <div className={`p-3 rounded-2xl ${isBelowMin ? 'bg-rose-500 text-white animate-pulse' : 'bg-emerald-500 text-slate-950 font-black'}`}>
-            <Wallet className="w-6 h-6" />
-          </div>
+      {/* V2 Prepaid Driver SLSH Balance Card */}
+      <div className="bg-gradient-to-br from-blue-900/90 via-slate-900 to-slate-900 text-white rounded-2xl p-6 border border-blue-500/30 shadow-xl space-y-4">
+        <div className="flex items-center justify-between">
           <div>
-            <div className="flex items-center space-x-2">
-              <span className="font-extrabold text-xs text-slate-300 uppercase tracking-wider">
-                Driver Prepaid Commission Wallet
-              </span>
-              <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase ${
-                isBelowMin ? 'bg-rose-500 text-white' : 'bg-emerald-400 text-slate-950'
-              }`}>
-                {isBelowMin ? 'BLOCKED (< 1,000 SOS)' : 'ACTIVE / ONLINE ALLOWED'}
-              </span>
+            <span className="text-[11px] text-blue-300 uppercase font-black tracking-wider flex items-center space-x-1">
+              <CreditCard className="w-3.5 h-3.5 text-blue-400 inline mr-1" />
+              <span>WADAAGE PREPAID SLSH BALANCE</span>
+            </span>
+            <div className="text-3xl font-black text-white tracking-tight mt-1 font-mono">
+              {Number(currentBalanceSlsh).toLocaleString()} SLSH
             </div>
-            <div className="text-2xl font-black text-white font-mono mt-1">
-              {currentSos.toLocaleString()} SOS <span className="text-sm font-bold text-emerald-400">(${driverWalletBalanceUsd.toFixed(2)} USD)</span>
-            </div>
-            <p className="text-[11px] text-slate-300/80 mt-0.5">
-              Trip Platform Fee: <b>1,000 SOS ($0.10)</b> per trip • Active Threshold: <b>1,000 SOS ($0.10)</b> • Top up: ZAAD <b>0636807814</b> / eDahab <b>0656807814</b>
+            <p className="text-xs font-bold text-slate-400 mt-0.5">
+              ≈ ${(Number(currentBalanceSlsh) / 10000).toFixed(2)} USD
             </p>
           </div>
+          <button
+            onClick={() => setShowWalletModal(true)}
+            className="bg-blue-500 hover:bg-blue-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-lg flex items-center space-x-1.5 transition-transform active:scale-95"
+          >
+            <Plus className="w-4 h-4 stroke-[3]" />
+            <span>TOP UP BALANCE</span>
+          </button>
         </div>
 
-        <button
-          onClick={() => setShowWalletModal(true)}
-          className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs shadow-lg flex items-center space-x-1.5 transition shrink-0 uppercase tracking-wider"
-        >
-          <Wallet className="w-4 h-4" />
-          <span>DEPOSIT TO WALLET</span>
-        </button>
+        {Number(currentBalanceSlsh) < 0 && (
+          <div className="p-3 bg-rose-500/20 border border-rose-500/40 text-rose-300 rounded-xl text-xs font-bold">
+            ⚠️ Low / Negative Prepaid Balance lockout active! Please top up via ZAAD or eDahab to remain online.
+          </div>
+        )}
       </div>
 
       {/* Earnings Overview Card */}
@@ -99,7 +90,7 @@ export const DriverEarningsView: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-3 pt-2 border-t border-slate-700/80 text-xs">
+        <div className="grid grid-cols-2 gap-3 pt-2 border-t border-slate-700/80 text-xs">
           <div>
             <span className="text-slate-400 block text-[10px] uppercase">Today's Net</span>
             <span className="font-bold text-white text-sm">{formatCurrency(driver.todayEarnings)}</span>
@@ -108,48 +99,46 @@ export const DriverEarningsView: React.FC = () => {
             <span className="text-slate-400 block text-[10px] uppercase">Trips Done</span>
             <span className="font-bold text-white text-sm">{driver.totalTrips} rides</span>
           </div>
-          <div>
-            <span className="text-slate-400 block text-[10px] uppercase">Trip Charge Fee</span>
-            <span className="font-bold text-emerald-400 text-sm">1,000 SOS / Trip</span>
-          </div>
         </div>
       </div>
 
-      {/* Wallet Deductions & Topup Audit Trail */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-xl space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center space-x-2">
-            <Wallet className="w-4 h-4 text-emerald-500" />
-            <span>Commission Wallet Statement</span>
-          </h3>
-          <span className="text-xs text-slate-400">{driverWalletTransactions.length} Transactions</span>
-        </div>
-
+      {/* Recent Driver Prepaid Transactions Ledger */}
+      <div className="bg-slate-900 rounded-2xl p-5 border border-slate-800 space-y-3">
+        <h4 className="text-xs font-black uppercase text-slate-400 tracking-wider">
+          Recent Commission & Top-Up Ledger
+        </h4>
         <div className="space-y-2">
-          {driverWalletTransactions.map((tx) => (
-            <div
-              key={tx.id}
-              className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 flex items-center justify-between text-xs"
-            >
-              <div>
-                <div className="font-bold text-slate-900 dark:text-white">{tx.title}</div>
-                <div className="text-[10px] text-slate-400">{tx.date}</div>
-              </div>
-              <div className="text-right">
-                <div className={`font-black font-mono text-sm ${tx.amountUsd > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
-                  {tx.amountUsd > 0 ? '+' : ''}{tx.amountSos.toLocaleString()} SOS
+          {driverWalletTransactions
+            .filter((tx) => tx.driverId === (currentUser?.id || 'drv_01') || tx.driverId === 'drv_01')
+            .slice(0, 5)
+            .map((tx) => (
+              <div key={tx.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-800/80 border border-slate-700/50 text-xs">
+                <div className="flex items-center space-x-2.5">
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center font-bold ${
+                    tx.type === 'TOPUP' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                  }`}>
+                    {tx.type === 'TOPUP' ? <ArrowDownLeft className="w-4 h-4" /> : <ArrowUpRight className="w-4 h-4" />}
+                  </div>
+                  <div>
+                    <p className="font-bold text-white">{tx.title}</p>
+                    <p className="text-[10px] text-slate-400 font-mono">{tx.timestamp.substring(0, 16).replace('T', ' ')}</p>
+                  </div>
                 </div>
-                <div className="text-[10px] text-slate-400">
-                  ({tx.amountUsd > 0 ? '+' : ''}${Math.abs(tx.amountUsd).toFixed(2)})
+                <div className="text-right">
+                  <p className={`font-black font-mono ${tx.type === 'TOPUP' ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {tx.type === 'TOPUP' ? '+' : '-'}{tx.amountSlsh.toLocaleString()} SLSH
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase">{tx.status}</p>
                 </div>
               </div>
-            </div>
-          ))}
+            ))}
         </div>
       </div>
 
-      {/* Modal */}
-      <DriverCommissionWalletModal isOpen={showWalletModal} onClose={() => setShowWalletModal(false)} />
+      <WadaageDriverWalletModal
+        isOpen={showWalletModal}
+        onClose={() => setShowWalletModal(false)}
+      />
     </div>
   );
 };

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Power,
   Shield,
-  Wallet,
   TrendingUp,
   Clock,
   Car,
@@ -26,8 +25,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useRide } from '../../context/RideContext';
 import { UnifiedMap } from '../Map/UnifiedMap';
-import { formatCurrency, EXCHANGE_RATE_USD_TO_SLSH } from '../../utils/geo';
-import { DriverCommissionWalletModal } from './DriverCommissionWalletModal';
+import { formatCurrency, EXCHANGE_RATE_USD_TO_SLSH, calculateDistanceKm } from '../../utils/geo';
 import { DriverEmergencySosModal } from './DriverEmergencySosModal';
 import { DriverHotspotsModal } from './DriverHotspotsModal';
 import { ServiceTypesModal } from './ServiceTypesModal';
@@ -35,6 +33,7 @@ import { DestinationModeModal } from './DestinationModeModal';
 import { WorkingCapitalModal } from './WorkingCapitalModal';
 import { SafetyCentreDrawer } from './SafetyCentreDrawer';
 import { AppInfoWalletModal } from '../Common/AppInfoWalletModal';
+import { WadaageDriverWalletModal } from './WadaageDriverWalletModal';
 
 export interface WadaageDriverDashboardProps {
   onOpenActivity?: () => void;
@@ -57,14 +56,20 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
     currentRide,
     advanceDriverRideState,
     drivers,
-    driverWalletBalanceUsd,
     pricing,
     currentUser,
+    driverWallets,
+    getDriverSlshBalance,
   } = useRide();
 
+  const currentBalanceSlsh =
+    driverWallets[currentUser?.id || ''] ??
+    driverWallets[currentUser?.phone || ''] ??
+    getDriverSlshBalance(currentUser?.id || 'drv_01');
+
   // Modals & Sheets
-  const [showWalletModal, setShowWalletModal] = useState(false);
   const [showSosModal, setShowSosModal] = useState(false);
+  const [showDriverWalletModal, setShowDriverWalletModal] = useState(false);
   const [showHotspotsModal, setShowHotspotsModal] = useState(false);
   const [showServiceTypesModal, setShowServiceTypesModal] = useState(false);
   const [showDestinationModal, setShowDestinationModal] = useState(false);
@@ -86,6 +91,7 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
     todayEarnings: 48.50,
     hoursOnline: 5.8,
     acceptanceRate: 98,
+    currentLocation: { lat: 9.5600, lng: 44.0650 },
     vehicle: { model: 'Toyota Vitz', licensePlate: 'SL-39201', color: 'Silver', category: 'wadaage_taxi', capacity: 4 },
   };
 
@@ -116,10 +122,7 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
   }, [incomingDriverRequest, declineRideByDriver]);
 
   const handleToggle = () => {
-    const success = toggleDriverOnline(!driverModeOnline);
-    if (!success) {
-      setShowWalletModal(true);
-    }
+    toggleDriverOnline(!driverModeOnline);
   };
 
   return (
@@ -163,8 +166,20 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
             </div>
           </div>
 
-          {/* Right Header Actions: SOS Safety & Driver Profile */}
-          <div className="flex items-center space-x-2.5 shrink-0">
+          {/* Right Header Actions: Prepaid SLSH Balance, SOS Safety & Driver Profile */}
+          <div className="flex items-center space-x-2 shrink-0">
+            {/* Prepaid SLSH Balance Quick Badge */}
+            <button
+              onClick={() => setShowDriverWalletModal(true)}
+              className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-3 py-1.5 rounded-2xl flex flex-col items-end justify-center transition active:scale-95"
+              title="Driver Prepaid Balance"
+            >
+              <span className="text-[9px] font-black uppercase text-slate-400">Prepaid Bal</span>
+              <span className="text-xs font-black font-mono leading-none">
+                {Number(currentBalanceSlsh).toLocaleString()} SLSH
+              </span>
+            </button>
+
             {/* Safety SOS Quick Button */}
             <button
               onClick={() => setShowSafetyDrawer(true)}
@@ -172,16 +187,6 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
               title="Safety SOS"
             >
               <Shield className="w-5 h-5 stroke-[2.2]" />
-            </button>
-
-            {/* Wallet Quick Balance Pill */}
-            <button
-              onClick={() => setShowWalletModal(true)}
-              className="hidden sm:flex items-center space-x-1.5 px-3 py-2 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 rounded-2xl border border-emerald-500/20 text-xs font-black transition active:scale-95 shadow-xs"
-              title="Prepaid Commission Wallet"
-            >
-              <Wallet className="w-4 h-4" />
-              <span>${driverWalletBalanceUsd.toFixed(2)}</span>
             </button>
 
             {/* Driver Avatar + Rating Star */}
@@ -299,6 +304,61 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
         </div>
       </div>
 
+      {/* 4. ACTIVE RIDE TELEMETRY MONITORING CARD (Stage 2 & 3) */}
+      <AnimatePresence>
+        {currentRide && ['accepted', 'driver_arrived', 'in_progress'].includes(currentRide.status) && (
+          <motion.div
+            initial={{ y: 50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 50, opacity: 0 }}
+            className="relative z-30 mx-4 sm:mx-5 mb-3 bg-slate-900 text-white border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-2xl space-y-3"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <span className={`px-2.5 py-1 rounded-full font-black text-xs uppercase ${
+                  currentRide.status === 'in_progress' ? 'bg-emerald-500 text-slate-950' : 'bg-blue-500 text-white'
+                }`}>
+                  {currentRide.status === 'in_progress' ? '● Trip In Progress' : '● Driver En Route'}
+                </span>
+                <span className="text-xs font-mono font-bold text-slate-300">
+                  {currentRide.passengerName}
+                </span>
+              </div>
+              <span className="text-base font-black text-emerald-400 font-mono">
+                ${(currentRide.totalFare || 2.50).toFixed(2)}
+              </span>
+            </div>
+
+            {/* Dynamic Real-Time Telemetry Distance Readout */}
+            <div className="bg-slate-800/80 p-3 rounded-2xl border border-slate-700/60 flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2">
+                <Navigation className="w-4 h-4 text-emerald-400 animate-pulse" />
+                <span className="font-bold text-slate-200">
+                  {currentRide.status === 'in_progress' ? 'Remaining to Destination:' : 'Pickup Proximity:'}
+                </span>
+              </div>
+              <span className="text-sm font-black font-mono text-emerald-400">
+                {currentRide.status === 'in_progress'
+                  ? `${calculateDistanceKm(currentDriver.currentLocation.lat, currentDriver.currentLocation.lng, currentRide.dropoff.lat, currentRide.dropoff.lng).toFixed(1)} km`
+                  : `Pickup is ${calculateDistanceKm(currentDriver.currentLocation.lat, currentDriver.currentLocation.lng, currentRide.pickup.lat, currentRide.pickup.lng).toFixed(1)} km away`}
+              </span>
+            </div>
+
+            {/* Advance Ride Lifecycle Action Button */}
+            <button
+              onClick={() => advanceDriverRideState()}
+              className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-xs uppercase tracking-wider shadow-lg transition active:scale-98"
+            >
+              {currentRide.status === 'accepted'
+                ? 'Confirm Arrival at Pickup'
+                : currentRide.status === 'driver_arrived'
+                ? 'Start Trip (Passenger Onboard)'
+                : 'Complete Drop-off & Finish Trip'}
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* 4. INCOMING TRIP DISPATCH ALERT CARD (If any ride is dispatched) */}
       <AnimatePresence>
         {incomingDriverRequest && (!currentRide || currentRide.status === 'searching' || currentRide.status === 'idle') && (
@@ -324,9 +384,14 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
 
             {/* Passenger & Route details */}
             <div className="space-y-1.5 text-xs">
-              <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-bold">
-                <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
-                <span className="truncate">From: {incomingDriverRequest.pickup?.name || 'Pickup Location'}</span>
+              <div className="flex items-center justify-between text-slate-900 dark:text-white font-bold">
+                <div className="flex items-center space-x-2 truncate">
+                  <div className="w-2.5 h-2.5 rounded-full bg-blue-600 shrink-0" />
+                  <span className="truncate">From: {incomingDriverRequest.pickup?.name || 'Pickup Location'}</span>
+                </div>
+                <span className="text-[11px] font-mono text-blue-600 dark:text-blue-400 shrink-0 ml-2">
+                  Trip Distance: {(incomingDriverRequest.distanceKm || calculateDistanceKm(incomingDriverRequest.pickup.lat, incomingDriverRequest.pickup.lng, incomingDriverRequest.dropoff.lat, incomingDriverRequest.dropoff.lng)).toFixed(1)} km
+                </span>
               </div>
               <div className="flex items-center space-x-2 text-slate-900 dark:text-white font-bold">
                 <div className="w-2.5 h-2.5 rounded-full bg-emerald-600 shrink-0" />
@@ -475,10 +540,6 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
       </div>
 
       {/* 6. MODALS & DRAWERS */}
-      <DriverCommissionWalletModal
-        isOpen={showWalletModal}
-        onClose={() => setShowWalletModal(false)}
-      />
       <DriverEmergencySosModal
         isOpen={showSosModal}
         onClose={() => setShowSosModal(false)}
@@ -509,6 +570,10 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
       <AppInfoWalletModal
         isOpen={showAppInfoModal}
         onClose={() => setShowAppInfoModal(false)}
+      />
+      <WadaageDriverWalletModal
+        isOpen={showDriverWalletModal}
+        onClose={() => setShowDriverWalletModal(false)}
       />
     </div>
   );
