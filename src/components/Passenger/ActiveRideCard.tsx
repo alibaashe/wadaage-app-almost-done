@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useRide } from '../../context/RideContext';
-import { formatCurrency, EXCHANGE_RATE_USD_TO_SLSH } from '../../utils/geo';
+import { formatCurrency, EXCHANGE_RATE_USD_TO_SLSH, calculateDistanceKm } from '../../utils/geo';
 import { CallDriverModal } from './CallDriverModal';
 import { ChatModal } from './ChatModal';
 import { ShareTripModal } from './ShareTripModal';
@@ -620,16 +620,24 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({ onOpenSafetyModa
               </div>
             )}
 
-            {/* Turn-by-Turn Guidance, Hargeisa Road Corridor & ETA */}
-            <div className="bg-slate-900 text-white p-3.5 rounded-xl flex flex-col space-y-2 text-xs">
+          {/* Real-time Dynamic Telemetry & Proximity Readout */}
+          <div className="bg-slate-900 text-white p-3.5 rounded-2xl flex flex-col space-y-2 text-xs border border-slate-800">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2.5">
                   <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></div>
                   <div>
-                    <div className="font-bold">
-                      {currentRide.status === 'accepted' && 'Driver heading to Pickup on Hargeisa roads (ETA ~3 mins)'}
-                      {currentRide.status === 'driver_arrived' && 'Driver waiting at pickup gate'}
-                      {currentRide.status === 'in_progress' && `En route to ${currentRide.dropoff?.name || 'Destination'}`}
+                  <div className="font-bold text-sm">
+                    {currentRide.status === 'accepted' && (
+                      <span className="text-blue-400 font-mono font-extrabold">
+                        Your driver is {calculateDistanceKm(matchedDriver?.currentLocation?.lat || 9.560, matchedDriver?.currentLocation?.lng || 44.065, currentRide.pickup.lat, currentRide.pickup.lng).toFixed(1)} km away
+                      </span>
+                    )}
+                    {currentRide.status === 'driver_arrived' && 'Driver arrived at pickup location!'}
+                    {currentRide.status === 'in_progress' && (
+                      <span className="text-emerald-400 font-mono font-extrabold">
+                        {calculateDistanceKm(matchedDriver?.currentLocation?.lat || 9.560, matchedDriver?.currentLocation?.lng || 44.065, currentRide.dropoff.lat, currentRide.dropoff.lng).toFixed(1)} km remaining until destination
+                      </span>
+                    )}
                     </div>
                     <div className="text-[10px] text-slate-400">
                       Safety PIN: <span className="font-mono text-emerald-400 font-bold">{currentRide.otpCode || '4912'}</span> (Share with driver before starting)
@@ -638,8 +646,8 @@ export const ActiveRideCard: React.FC<ActiveRideCardProps> = ({ onOpenSafetyModa
                 </div>
 
                 <div className="text-right shrink-0">
-                  <span className="text-[10px] font-bold text-emerald-400 font-mono">
-                    {currentRide.distanceKm} km
+                <span className="text-xs font-black text-emerald-400 font-mono bg-slate-800 px-2 py-1 rounded-lg border border-slate-700">
+                  {currentRide.distanceKm} km Total
                   </span>
                 </div>
               </div>

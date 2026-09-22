@@ -154,6 +154,7 @@ interface RideContextType {
   detectUserRealLocation: () => Promise<LocationNode | null>;
   dropoffLocation: LocationNode;
   setDropoffLocation: (loc: LocationNode) => void;
+  updateCustomDestinationPing: (newLoc: LocationNode) => void;
   multiStops: LocationNode[];
   setMultiStops: React.Dispatch<React.SetStateAction<LocationNode[]>>;
   // Hargeisa Real Road Network Metrics
@@ -1462,6 +1463,27 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch {}
     return null;
   });
+
+  const updateCustomDestinationPing = useCallback((newLoc: LocationNode) => {
+    setDropoffLocation(newLoc);
+    setCurrentRide((prev) => {
+      if (prev && (prev.status === 'searching' || prev.status === 'accepted' || prev.status === 'in_progress')) {
+        const updatedDist = Math.round(calculateDistanceKm(prev.pickup.lat, prev.pickup.lng, newLoc.lat, newLoc.lng) * 10) / 10;
+        const updatedMins = calculateDurationMins(updatedDist);
+        const updatedRide: RideRequest = {
+          ...prev,
+          dropoff: newLoc,
+          distanceKm: updatedDist,
+          durationMins: updatedMins,
+        };
+        saveRideToFirestore(updatedRide);
+        syncRideToHostinger(updatedRide);
+        broadcastRideEvent('RIDE_STATUS_UPDATED', updatedRide);
+        return updatedRide;
+      }
+      return prev;
+    });
+  }, []);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [unreadChatCount, setUnreadChatCount] = useState<number>(0);
   const markChatAsRead = useCallback(() => setUnreadChatCount(0), []);
@@ -4592,6 +4614,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
         detectUserRealLocation,
         dropoffLocation,
         setDropoffLocation,
+        updateCustomDestinationPing,
         multiStops,
         setMultiStops,
         roadRoute,

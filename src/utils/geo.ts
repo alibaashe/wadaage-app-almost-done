@@ -139,6 +139,21 @@ export function snapToNearestLandmarkAnchor(
   return null;
 }
 
+// Dynamic Precision Geospatial Distance Recalculation Engine
+export function formatFormattedDistanceKm(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): { rawKm: number; formattedText: string } {
+  const dist = calculateHaversineDistanceKm(lat1, lon1, lat2, lon2);
+  const singleDecimal = Math.round(dist * 10) / 10;
+  return {
+    rawKm: singleDecimal,
+    formattedText: `${singleDecimal.toFixed(1)} km`,
+  };
+}
+
 // Standard Haversine Great-Circle formula for direct spherical distance between two GPS coordinates
 export function calculateHaversineDistanceKm(
   lat1: number,

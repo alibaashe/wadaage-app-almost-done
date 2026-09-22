@@ -244,8 +244,11 @@ export const MapLibreInteractiveMap: React.FC<MapLibreInteractiveMapProps> = ({
     currentRide,
     setPickupLocation,
     setDropoffLocation,
+    updateCustomDestinationPing,
     role,
   } = useRide();
+
+  const [isCustomPingActive, setIsCustomPingActive] = useState(false);
 
   // Stable references and memoized coordinates
   const EMPTY_STOPS: LocationNode[] = useMemo(() => [], []);
@@ -659,15 +662,17 @@ export const MapLibreInteractiveMap: React.FC<MapLibreInteractiveMapProps> = ({
           zone: 'Hargeisa',
         });
         if (onModeChange) onModeChange('dropoff');
-      } else if (selectableMode === 'dropoff') {
-        setDropoffLocation({
+      } else if (selectableMode === 'dropoff' || isCustomPingActive) {
+        const customLoc: LocationNode = {
           id: `map_drop_${Date.now()}`,
-          name: 'Selected Destination',
+          name: '📍 Custom Ping Destination',
           address: `GPS: ${e.lngLat.lat.toFixed(4)}, ${e.lngLat.lng.toFixed(4)}, Hargeisa`,
           lat: e.lngLat.lat,
           lng: e.lngLat.lng,
           zone: 'Hargeisa',
-        });
+        };
+        updateCustomDestinationPing(customLoc);
+        setIsCustomPingActive(false);
       }
     });
 
@@ -1216,6 +1221,21 @@ export const MapLibreInteractiveMap: React.FC<MapLibreInteractiveMapProps> = ({
     >
       {/* Mapbox / MapLibre Viewport Container */}
       <div ref={mapContainerRef} className="w-full h-full" />
+
+      {/* Interactive Custom Destination Map Ping Button */}
+      <div className="absolute top-4 left-4 z-10">
+        <button
+          onClick={() => setIsCustomPingActive(!isCustomPingActive)}
+          className={`px-3.5 py-2 rounded-2xl font-black text-xs shadow-xl border flex items-center space-x-2 transition-all active:scale-95 cursor-pointer ${
+            isCustomPingActive
+              ? 'bg-rose-500 text-white border-rose-400 animate-bounce'
+              : 'bg-white/95 dark:bg-slate-900/95 text-slate-800 dark:text-white border-slate-200 dark:border-slate-800 hover:bg-slate-100'
+          }`}
+        >
+          <Compass className="w-4 h-4 text-emerald-500" />
+          <span>{isCustomPingActive ? 'Tap Map to Ping Destination' : 'Ping Custom Destination Place'}</span>
+        </button>
+      </div>
 
       {/* Floating Essential Map Controls */}
       <div className="absolute right-3 bottom-4 flex flex-col space-y-2 z-10">
