@@ -11,6 +11,7 @@ import { PaymentGatewaysConfig } from './PaymentGatewaysConfig';
 import { PricingSurgeControl } from './PricingSurgeControl';
 import { RolePermissionManager } from './RolePermissionManager';
 import { UserManagementTable } from './UserManagementTable';
+import { DriverTopUpControlTable } from './DriverTopUpControlTable';
 import { GodsEyeViewMap } from './GodsEyeViewMap';
 import { GeofenceZoneManager } from './GeofenceZoneManager';
 import { FraudDetectionPanel } from './FraudDetectionPanel';
@@ -29,7 +30,7 @@ import { SecurityEncryptionCenter } from './SecurityEncryptionCenter';
 export const AdminDashboard: React.FC = () => {
   const { drivers, currentRide, pricing, dispatchDriverToRide } = useRide();
   const [activeTab, setActiveTab] = useState<
-    'dispatch' | 'flow_matching' | 'pricing' | 'approval' | 'users' | 'broadcast' | 'coupons' | 'roles' | 'payments' | 'whatsapp' | 'security' | 'hostinger' | 'database' | 'playstore'
+    'dispatch' | 'flow_matching' | 'pricing' | 'approval' | 'users' | 'broadcast' | 'coupons' | 'roles' | 'payments' | 'whatsapp' | 'security' | 'hostinger' | 'database' | 'playstore' | 'wallets'
   >('dispatch');
   const [showSurgeHeatmap, setShowSurgeHeatmap] = useState(true);
 
@@ -253,6 +254,21 @@ export const AdminDashboard: React.FC = () => {
         >
           <Tag className="w-4 h-4" />
           <span>Coupons & Promos</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('wallets')}
+          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5 shrink-0 ${
+            activeTab === 'wallets'
+              ? 'bg-blue-500 text-slate-950 font-black shadow-md ring-2 ring-blue-400/40'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <Wallet className="w-4 h-4 text-blue-400" />
+          <span>Driver Wallet Manager</span>
+          <span className="bg-blue-500/20 text-blue-400 text-[9px] px-1.5 py-0.2 rounded-full font-black uppercase">
+            V2 SLSH
+          </span>
         </button>
 
         <button
@@ -503,6 +519,7 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
+      {activeTab === 'wallets' && <DriverTopUpControlTable />}
       {activeTab === 'flow_matching' && <FlowMatchingControlCenter />}
       {activeTab === 'pricing' && <PricingSurgeControl />}
       {activeTab === 'broadcast' && <BroadcastManager />}

@@ -33,6 +33,7 @@ import { DestinationModeModal } from './DestinationModeModal';
 import { WorkingCapitalModal } from './WorkingCapitalModal';
 import { SafetyCentreDrawer } from './SafetyCentreDrawer';
 import { AppInfoWalletModal } from '../Common/AppInfoWalletModal';
+import { WadaageDriverWalletModal } from './WadaageDriverWalletModal';
 
 export interface WadaageDriverDashboardProps {
   onOpenActivity?: () => void;
@@ -57,10 +58,12 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
     drivers,
     pricing,
     currentUser,
+    getDriverSlshBalance,
   } = useRide();
 
   // Modals & Sheets
   const [showSosModal, setShowSosModal] = useState(false);
+  const [showDriverWalletModal, setShowDriverWalletModal] = useState(false);
   const [showHotspotsModal, setShowHotspotsModal] = useState(false);
   const [showServiceTypesModal, setShowServiceTypesModal] = useState(false);
   const [showDestinationModal, setShowDestinationModal] = useState(false);
@@ -156,8 +159,20 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
             </div>
           </div>
 
-          {/* Right Header Actions: SOS Safety & Driver Profile */}
-          <div className="flex items-center space-x-2.5 shrink-0">
+          {/* Right Header Actions: Prepaid SLSH Balance, SOS Safety & Driver Profile */}
+          <div className="flex items-center space-x-2 shrink-0">
+            {/* Prepaid SLSH Balance Quick Badge */}
+            <button
+              onClick={() => setShowDriverWalletModal(true)}
+              className="bg-blue-500/10 hover:bg-blue-500/20 text-blue-600 dark:text-blue-400 border border-blue-500/20 px-3 py-1.5 rounded-2xl flex flex-col items-end justify-center transition active:scale-95"
+              title="Driver Prepaid Balance"
+            >
+              <span className="text-[9px] font-black uppercase text-slate-400">Prepaid Bal</span>
+              <span className="text-xs font-black font-mono leading-none">
+                {getDriverSlshBalance(currentUser?.id || 'drv_01').toLocaleString()} SLSH
+              </span>
+            </button>
+
             {/* Safety SOS Quick Button */}
             <button
               onClick={() => setShowSafetyDrawer(true)}
@@ -488,6 +503,10 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
       <AppInfoWalletModal
         isOpen={showAppInfoModal}
         onClose={() => setShowAppInfoModal(false)}
+      />
+      <WadaageDriverWalletModal
+        isOpen={showDriverWalletModal}
+        onClose={() => setShowDriverWalletModal(false)}
       />
     </div>
   );
