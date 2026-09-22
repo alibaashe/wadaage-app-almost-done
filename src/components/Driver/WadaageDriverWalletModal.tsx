@@ -8,7 +8,7 @@ interface WadaageDriverWalletModalProps {
 }
 
 export const WadaageDriverWalletModal: React.FC<WadaageDriverWalletModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, getDriverSlshBalance, driverWalletTransactions, requestDriverTopUp } = useRide();
+  const { currentUser, driverWallets, getDriverSlshBalance, driverWalletTransactions, requestDriverTopUp } = useRide();
   const [topUpAmountSlsh, setTopUpAmountSlsh] = useState<number>(50000);
   const [paymentProvider, setPaymentProvider] = useState<'zaad' | 'edahab' | 'evc'>('zaad');
   const [referenceId, setReferenceId] = useState<string>('');
@@ -18,7 +18,10 @@ export const WadaageDriverWalletModal: React.FC<WadaageDriverWalletModalProps> =
   if (!isOpen) return null;
 
   const driverId = currentUser?.id || 'drv_01';
-  const currentBalanceSlsh = getDriverSlshBalance(driverId);
+  const currentBalanceSlsh =
+    driverWallets[currentUser?.id || ''] ??
+    driverWallets[currentUser?.phone || ''] ??
+    getDriverSlshBalance(driverId);
   const currentBalanceUsd = currentBalanceSlsh / 10000;
 
   const handleTopUpSubmit = (e: React.FormEvent) => {
@@ -71,7 +74,7 @@ export const WadaageDriverWalletModal: React.FC<WadaageDriverWalletModalProps> =
               Wadaage Prepaid Balance
             </span>
             <div className="text-3xl font-black font-mono text-white tracking-tight">
-              {currentBalanceSlsh.toLocaleString()} SLSH
+              {Number(currentBalanceSlsh).toLocaleString()} SLSH
             </div>
             <div className="flex items-center justify-between text-xs text-slate-400 font-bold pt-1 border-t border-slate-800">
               <span>Equivalent USD Value:</span>

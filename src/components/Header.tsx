@@ -22,7 +22,11 @@ export interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onBackToWebsite, onNavigate }) => {
-  const { role, setRole, walletBalance, soundEnabled, setSoundEnabled, currentUser, logout, language, setLanguage, t, getDriverSlshBalance } = useRide();
+  const { role, setRole, walletBalance, soundEnabled, setSoundEnabled, currentUser, logout, language, setLanguage, t, driverWallets, getDriverSlshBalance } = useRide();
+  const driverBalanceSlsh =
+    driverWallets[currentUser?.id || ''] ??
+    driverWallets[currentUser?.phone || ''] ??
+    getDriverSlshBalance(currentUser?.id || 'drv_01');
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [showDriverWalletModal, setShowDriverWalletModal] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
@@ -185,10 +189,10 @@ export const Header: React.FC<HeaderProps> = ({ onBackToWebsite, onNavigate }) =
                 </div>
                 <div className="text-left">
                   <div className="font-black text-blue-300 text-xs leading-none">
-                    {getDriverSlshBalance(currentUser?.id || 'drv_01').toLocaleString()} SLSH
+                    {Number(driverBalanceSlsh).toLocaleString()} SLSH
                   </div>
                   <div className="text-[9px] font-bold text-slate-400 font-mono">
-                    ${(getDriverSlshBalance(currentUser?.id || 'drv_01') / 10000).toFixed(2)} USD
+                    ${(Number(driverBalanceSlsh) / 10000).toFixed(2)} USD
                   </div>
                 </div>
               </button>

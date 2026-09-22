@@ -58,8 +58,14 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
     drivers,
     pricing,
     currentUser,
+    driverWallets,
     getDriverSlshBalance,
   } = useRide();
+
+  const currentBalanceSlsh =
+    driverWallets[currentUser?.id || ''] ??
+    driverWallets[currentUser?.phone || ''] ??
+    getDriverSlshBalance(currentUser?.id || 'drv_01');
 
   // Modals & Sheets
   const [showSosModal, setShowSosModal] = useState(false);
@@ -170,7 +176,7 @@ export const WadaageDriverDashboard: React.FC<WadaageDriverDashboardProps> = ({
             >
               <span className="text-[9px] font-black uppercase text-slate-400">Prepaid Bal</span>
               <span className="text-xs font-black font-mono leading-none">
-                {getDriverSlshBalance(currentUser?.id || 'drv_01').toLocaleString()} SLSH
+                {Number(currentBalanceSlsh).toLocaleString()} SLSH
               </span>
             </button>
 

@@ -587,7 +587,11 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [driverWallets, driverWalletTransactions]);
 
   const getDriverSlshBalance = useCallback((driverIdOrPhone: string): number => {
-    if (!driverIdOrPhone) return 120000;
+    if (!driverIdOrPhone) {
+      if (currentUser?.id && driverWallets[currentUser.id] !== undefined) return Number(driverWallets[currentUser.id]) || 0;
+      if (currentUser?.phone && driverWallets[currentUser.phone] !== undefined) return Number(driverWallets[currentUser.phone]) || 0;
+      return Number(driverWallets['drv_01'] ?? driverWallets['live_driver'] ?? 120000);
+    }
     if (driverWallets[driverIdOrPhone] !== undefined) {
       return Number(driverWallets[driverIdOrPhone]) || 0;
     }
@@ -596,8 +600,10 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (key === driverIdOrPhone) return Number(val) || 0;
       if (cleanLookup && key.replace(/\D/g, '') === cleanLookup) return Number(val) || 0;
     }
-    return 120000;
-  }, [driverWallets]);
+    if (currentUser?.id && driverWallets[currentUser.id] !== undefined) return Number(driverWallets[currentUser.id]) || 0;
+    if (currentUser?.phone && driverWallets[currentUser.phone] !== undefined) return Number(driverWallets[currentUser.phone]) || 0;
+    return Number(driverWallets['drv_01'] ?? driverWallets['live_driver'] ?? 120000);
+  }, [driverWallets, currentUser]);
 
   const requestDriverTopUp = (
     driverId: string,

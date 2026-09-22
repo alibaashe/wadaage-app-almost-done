@@ -5,7 +5,11 @@ import { formatCurrency } from '../../utils/geo';
 import { WadaageDriverWalletModal } from './WadaageDriverWalletModal';
 
 export const DriverEarningsView: React.FC = () => {
-  const { drivers, currentUser, getDriverSlshBalance, driverWalletTransactions } = useRide();
+  const { drivers, currentUser, driverWallets, getDriverSlshBalance, driverWalletTransactions } = useRide();
+  const currentBalanceSlsh =
+    driverWallets[currentUser?.id || ''] ??
+    driverWallets[currentUser?.phone || ''] ??
+    getDriverSlshBalance(currentUser?.id || 'drv_01');
   const [showWalletModal, setShowWalletModal] = useState(false);
   const driver = drivers.find((d) => d.phone === currentUser?.phone || d.id === currentUser?.id) || drivers[0] || {
     id: currentUser?.id || 'drv_live',
@@ -37,10 +41,10 @@ export const DriverEarningsView: React.FC = () => {
               <span>WADAAGE PREPAID SLSH BALANCE</span>
             </span>
             <div className="text-3xl font-black text-white tracking-tight mt-1 font-mono">
-              {getDriverSlshBalance(currentUser?.id || 'drv_01').toLocaleString()} SLSH
+              {Number(currentBalanceSlsh).toLocaleString()} SLSH
             </div>
             <p className="text-xs font-bold text-slate-400 mt-0.5">
-              ≈ ${(getDriverSlshBalance(currentUser?.id || 'drv_01') / 10000).toFixed(2)} USD
+              ≈ ${(Number(currentBalanceSlsh) / 10000).toFixed(2)} USD
             </p>
           </div>
           <button
@@ -52,7 +56,7 @@ export const DriverEarningsView: React.FC = () => {
           </button>
         </div>
 
-        {getDriverSlshBalance(currentUser?.id || 'drv_01') < 0 && (
+        {Number(currentBalanceSlsh) < 0 && (
           <div className="p-3 bg-rose-500/20 border border-rose-500/40 text-rose-300 rounded-xl text-xs font-bold">
             ⚠️ Low / Negative Prepaid Balance lockout active! Please top up via ZAAD or eDahab to remain online.
           </div>
