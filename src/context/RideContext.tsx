@@ -3996,9 +3996,9 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
     }
 
-    // Deduct 1,000 SLSH ($0.10 USD) platform commission fee upon rider drop-off
-    const commissionSos = 1000;
-    const commissionUsd = 0.10;
+    // Deduct platform commission fee upon rider drop-off (defaults to 1,000 SLSH / $0.10 USD or admin pricing setting)
+    const commissionUsd = pricing.driverCommissionFeeUsd || 0.10;
+    const commissionSos = Math.round(commissionUsd * 10000);
 
     let newDriverBalance = 0;
     setDriverWallets((prev) => {
