@@ -643,7 +643,23 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const newAbsoluteBal = Math.max(0, currentBal + topUpAmount);
 
       setDriverWallets((prev) => {
-        const updated = { ...prev, [dId]: newAbsoluteBal };
+        const updated = {
+          ...prev,
+          [dId]: newAbsoluteBal,
+          'drv_01': dId === 'drv_01' || dId === 'live_driver' ? newAbsoluteBal : (prev['drv_01'] ?? newAbsoluteBal),
+          'live_driver': dId === 'drv_01' || dId === 'live_driver' ? newAbsoluteBal : (prev['live_driver'] ?? newAbsoluteBal),
+        };
+        const targetDriver = drivers.find((d) => d.id === dId || d.phone === dId);
+        if (targetDriver) {
+          if (targetDriver.id) updated[targetDriver.id] = newAbsoluteBal;
+          if (targetDriver.phone) updated[targetDriver.phone] = newAbsoluteBal;
+        }
+        if (currentUser?.id && (currentUser.id === dId || targetDriver?.id === currentUser.id)) {
+          updated[currentUser.id] = newAbsoluteBal;
+        }
+        if (currentUser?.phone && (currentUser.phone === dId || targetDriver?.phone === currentUser.phone)) {
+          updated[currentUser.phone] = newAbsoluteBal;
+        }
         try {
           localStorage.setItem('wadaage_v2_wallets', JSON.stringify(updated));
         } catch {}
@@ -664,7 +680,23 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const adminAdjustDriverBalance = (driverId: string, newAbsoluteSlsh: number, note?: string) => {
     const safeAbsolute = Math.max(0, Math.round(newAbsoluteSlsh));
     setDriverWallets((prev) => {
-      const updated = { ...prev, [driverId]: safeAbsolute };
+      const updated = {
+        ...prev,
+        [driverId]: safeAbsolute,
+        'drv_01': driverId === 'drv_01' || driverId === 'live_driver' ? safeAbsolute : (prev['drv_01'] ?? safeAbsolute),
+        'live_driver': driverId === 'drv_01' || driverId === 'live_driver' ? safeAbsolute : (prev['live_driver'] ?? safeAbsolute),
+      };
+      const targetDriver = drivers.find((d) => d.id === driverId || d.phone === driverId);
+      if (targetDriver) {
+        if (targetDriver.id) updated[targetDriver.id] = safeAbsolute;
+        if (targetDriver.phone) updated[targetDriver.phone] = safeAbsolute;
+      }
+      if (currentUser?.id && (currentUser.id === driverId || targetDriver?.id === currentUser.id)) {
+        updated[currentUser.id] = safeAbsolute;
+      }
+      if (currentUser?.phone && (currentUser.phone === driverId || targetDriver?.phone === currentUser.phone)) {
+        updated[currentUser.phone] = safeAbsolute;
+      }
       try {
         localStorage.setItem('wadaage_v2_wallets', JSON.stringify(updated));
       } catch {}
