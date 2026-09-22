@@ -416,6 +416,27 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
         registeredUsers.push(user);
         secureStorage.setItem('wadaage_registered_users', registeredUsers);
       }
+
+      // Local state cache flushing / fresh fetch for driver login to invalidate stale balance
+      if (user.role === 'driver') {
+        fetch(getApiUrl('/api/db/drivers'))
+          .then((res) => res.json())
+          .then((data) => {
+            if (data && data.success && Array.isArray(data.data)) {
+              const fresh = data.data.find((d: any) => d.id === user.id || (user.phone && d.phone === user.phone));
+              if (fresh && (fresh.walletBalanceUsd !== undefined || fresh.wallet_balance_usd !== undefined)) {
+                const freshBal = Number(fresh.walletBalanceUsd ?? fresh.wallet_balance_usd ?? 0);
+                setDriverWallets((prev) => {
+                  const next = { ...prev, [user.id]: freshBal };
+                  if (user.phone) next[user.phone] = freshBal;
+                  localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(next));
+                  return next;
+                });
+              }
+            }
+          })
+          .catch(() => {});
+      }
     } catch (e) {
       console.error(e);
     }
@@ -425,6 +446,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       secureStorage.removeItem('wadaage_auth_user');
       secureStorage.removeItem(`wadaage_auth_${role}`);
+      localStorage.removeItem('wadaage_driver_wallet_balance');
     } catch (e) {
       console.error(e);
     }
@@ -4046,7 +4068,7 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setDriverWalletTransactions((prev) => [commTx, ...prev]);
     saveTransactionToFirestore(commTx);
 
-    // Call server-authoritative finish endpoint
+    // Call server-authoritative finish endpoint and reactively sync upon 200 OK status
     try {
       fetch(getApiUrl(`/api/rides/${completedRideObj.id}/finish`), {
         method: 'POST',
@@ -4055,7 +4077,25 @@ export const RideProvider: React.FC<{ children: React.ReactNode }> = ({ children
           driverId: targetDriverId,
           finalFare: totalCollectedFare,
         }),
-      }).catch(() => {});
+      })
+        .then(async (res) => {
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.success && data.commissionTx) {
+              const serverBal = data.newBalanceUsd !== undefined ? Number(data.newBalanceUsd) : newDriverBalance;
+              setDriverWallets((prev) => {
+                const updated = { ...prev };
+                if (targetDriverId) updated[targetDriverId] = serverBal;
+                if (targetDriverPhone) updated[targetDriverPhone] = serverBal;
+                if (currentUser?.id) updated[currentUser.id] = serverBal;
+                if (currentUser?.phone) updated[currentUser.phone] = serverBal;
+                try { localStorage.setItem('wadaage_driver_wallets_map', JSON.stringify(updated)); } catch (_e) {}
+                return updated;
+              });
+            }
+          }
+        })
+        .catch(() => {});
     } catch (_e) {}
 
     const minThresholdUsd = pricing.driverMinWalletThresholdUsd || 0.10;
